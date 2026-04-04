@@ -8,17 +8,24 @@
 import SwiftUI
 
 struct ContentView: View {
+    @ObservedObject var controller: IslandController
+
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
+        ZStack(alignment: .top) {
+            IslandView(controller: controller)
         }
-        .padding()
+        .padding(.horizontal, IslandOverlayLayout.horizontalPadding)
+        .padding(.top, IslandOverlayLayout.topPadding)
+        .padding(.bottom, IslandOverlayLayout.bottomPadding)
+        .background(Color.clear)
+        .ignoresSafeArea()
     }
 }
 
-#Preview {
-    ContentView()
+struct ContentView_Previews: PreviewProvider {
+    static var previews: some View {
+        ContentView(controller: IslandController())
+            .padding(40)
+            .background(Color(red: 0.93, green: 0.95, blue: 0.98))
+    }
 }
