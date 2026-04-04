@@ -36,9 +36,9 @@ final class IslandController: ObservableObject {
     @Published private(set) var isExpanded = false
 
     let items: [IslandListItem] = [
+        IslandListItem(title: "Now Playing", subtitle: "Ambient mix queued for focus mode", systemImage: "music.note"),
         IslandListItem(title: "Build Ready", subtitle: "CodexIsland.app compiled successfully", systemImage: "hammer.fill"),
-        IslandListItem(title: "Review Queue", subtitle: "3 items waiting for a pass", systemImage: "text.badge.checkmark"),
-        IslandListItem(title: "Sync Status", subtitle: "Branch is ahead by 1 commit", systemImage: "arrow.triangle.branch")
+        IslandListItem(title: "Sync Status", subtitle: "Branch is clean and ready to push", systemImage: "arrow.triangle.branch")
     ]
 
     var presentationState: IslandPresentationState {

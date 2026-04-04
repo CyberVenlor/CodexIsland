@@ -17,14 +17,14 @@ struct IslandShellStyle: Equatable {
                 bottomCornerRadius: 24,
                 backgroundOpacity: 0.98,
                 strokeOpacity: 0.18,
-                shadowOpacity: 0.18
+                shadowOpacity: 0.20
             )
         case .collapsed(.simplified):
             IslandShellStyle(
                 size: CGSize(width: 226, height: 54),
                 topCornerRadius: 10,
                 bottomCornerRadius: 20,
-                backgroundOpacity: 0.12,
+                backgroundOpacity: 0.05,
                 strokeOpacity: 0.72,
                 shadowOpacity: 0.10
             )

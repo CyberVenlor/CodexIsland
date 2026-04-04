@@ -25,6 +25,13 @@ struct IslandView: View {
                 controller.collapse()
             }
         }
+        .contextMenu {
+            ForEach(CollapsedIslandMode.allCases) { mode in
+                Button(mode.title) {
+                    controller.collapsedMode = mode
+                }
+            }
+        }
         .animation(IslandController.animation, value: state)
     }
 
@@ -41,7 +48,7 @@ struct IslandView: View {
             )
             .stroke(Color.white.opacity(shellStyle.strokeOpacity), lineWidth: 1.2)
         }
-        .shadow(color: .black.opacity(shellStyle.shadowOpacity), radius: 26, y: 18)
+        .shadow(color: .black.opacity(shellStyle.shadowOpacity), radius: 24, y: 16)
     }
 
     @ViewBuilder
