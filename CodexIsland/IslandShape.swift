@@ -12,16 +12,16 @@ struct IslandShellStyle: Equatable {
         switch state {
         case .collapsed(.detailed):
             IslandShellStyle(
-                size: CGSize(width: 272, height: 62),
-                topRadius: 16,
-                bottomRadius: 24,
+                size: CGSize(width: 230, height: 32),
+                topRadius: 6,
+                bottomRadius: 12,
                 backgroundOpacity: 0.98,
                 strokeOpacity: 0.18,
                 shadowOpacity: 0.20
             )
         case .collapsed(.simplified):
             IslandShellStyle(
-                size: CGSize(width: 208, height: 48),
+                size: CGSize(width: 208, height: 32),
                 topRadius: 14,
                 bottomRadius: 20,
                 backgroundOpacity: 0.05,
@@ -31,8 +31,8 @@ struct IslandShellStyle: Equatable {
         case .expanded:
             IslandShellStyle(
                 size: CGSize(width: 336, height: 248),
-                topRadius: 16,
-                bottomRadius: 34,
+                topRadius: 8,
+                bottomRadius: 20,
                 backgroundOpacity: 0.98,
                 strokeOpacity: 0.12,
                 shadowOpacity: 0.26
@@ -43,6 +43,7 @@ struct IslandShellStyle: Equatable {
     static let maximumSize = CGSize(width: 336, height: 248)
     static let overshootWidth: CGFloat = 32
     static let overshootHeight: CGFloat = 36
+    static let minimumBottomY: CGFloat = 32
     static let canvasSize = CGSize(
         width: maximumSize.width + overshootWidth,
         height: maximumSize.height + overshootHeight
@@ -50,6 +51,7 @@ struct IslandShellStyle: Equatable {
 }
 
 struct AnimatedNotchShape: Shape {
+    private let topExtension: CGFloat = 1.2
     var shellWidth: CGFloat
     var shellHeight: CGFloat
     var topRadius: CGFloat
@@ -79,14 +81,18 @@ struct AnimatedNotchShape: Shape {
             width: width,
             height: height
         )
+        let bottomY = max(shellRect.maxY, IslandShellStyle.minimumBottomY)
 
         let top = min(max(0, topRadius), min(shellRect.width, shellRect.height) / 2)
         let bottom = min(max(0, bottomRadius), min(shellRect.width, shellRect.height) / 2)
+        let extendedTopY = shellRect.minY - topExtension
 
         var path = Path()
 
-        // Top edge.
+        // Add a thin top cap so the visible stroke sits slightly above the shell.
         path.move(to: CGPoint(x: shellRect.minX - top, y: shellRect.minY))
+        path.addLine(to: CGPoint(x: shellRect.minX - top, y: extendedTopY))
+        path.addLine(to: CGPoint(x: shellRect.maxX + top, y: extendedTopY))
         path.addLine(to: CGPoint(x: shellRect.maxX + top, y: shellRect.minY))
 
         // Top-right corner.
@@ -96,21 +102,21 @@ struct AnimatedNotchShape: Shape {
         )
 
         // Right edge.
-        path.addLine(to: CGPoint(x: shellRect.maxX, y: shellRect.maxY - bottom))
+        path.addLine(to: CGPoint(x: shellRect.maxX, y: bottomY - bottom))
 
         // Bottom-right corner.
         path.addQuadCurve(
-            to: CGPoint(x: shellRect.maxX - bottom, y: shellRect.maxY),
-            control: CGPoint(x: shellRect.maxX, y: shellRect.maxY)
+            to: CGPoint(x: shellRect.maxX - bottom, y: bottomY),
+            control: CGPoint(x: shellRect.maxX, y: bottomY)
         )
 
         // Bottom edge.
-        path.addLine(to: CGPoint(x: shellRect.minX + bottom, y: shellRect.maxY))
+        path.addLine(to: CGPoint(x: shellRect.minX + bottom, y: bottomY))
 
         // Bottom-left corner.
         path.addQuadCurve(
-            to: CGPoint(x: shellRect.minX, y: shellRect.maxY - bottom),
-            control: CGPoint(x: shellRect.minX, y: shellRect.maxY)
+            to: CGPoint(x: shellRect.minX, y: bottomY - bottom),
+            control: CGPoint(x: shellRect.minX, y: bottomY)
         )
 
         // Left edge.

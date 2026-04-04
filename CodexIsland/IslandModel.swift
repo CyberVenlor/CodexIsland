@@ -30,7 +30,8 @@ struct IslandListItem: Identifiable, Hashable {
 
 @MainActor
 final class IslandController: ObservableObject {
-    static let animation = Animation.spring(response: 0.58, dampingFraction: 0.78)
+    static let expandAnimation = Animation.spring(response: 0.58, dampingFraction: 0.78)
+    static let collapseAnimation = Animation.spring(response: 0.64, dampingFraction: 0.70)
     private static let hoverExitDelay: TimeInterval = 0.16
     private static let hoverToggleCooldown: TimeInterval = 0.24
 
@@ -84,7 +85,7 @@ final class IslandController: ObservableObject {
             return
         }
 
-        withAnimation(Self.animation) {
+        withAnimation(Self.expandAnimation) {
             isExpanded = true
         }
         lastTransitionAt = Date()
@@ -97,7 +98,7 @@ final class IslandController: ObservableObject {
             return
         }
 
-        withAnimation(Self.animation) {
+        withAnimation(Self.collapseAnimation) {
             isExpanded = false
         }
         lastTransitionAt = Date()

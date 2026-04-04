@@ -68,7 +68,6 @@ struct IslandView: View {
             )
             .stroke(Color.white.opacity(shellStyle.strokeOpacity), lineWidth: shellStrokeWidth)
         }
-        .offset(y: -shellStrokeWidth)
     }
 
     private var content: some View {
@@ -117,54 +116,35 @@ struct IslandContentView: View {
     }
 
     private var collapsedContent: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            header(title: "Playback Ready", subtitle: "Ambient mix queued for focus mode", artworkSize: 44)
+        ZStack {
+            Image(systemName: "waveform")
+                .font(.body.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.8))
+                .frame(width: 24)
+                .offset(x: -100)
+
+            Text("W")
+                .foregroundStyle(.white)
+                .offset(x: 100)
         }
         .padding(.horizontal, 16)
-        .padding(.top, 12)
-        .padding(.bottom, 12)
-        .frame(width: detailedSize.width, height: detailedSize.height, alignment: .top)
+        .padding(.top, 0)
+        .padding(.bottom, 0)
+        .frame(width: detailedSize.width, height: detailedSize.height, alignment: .center)
         .opacity(isDetailedCollapsed ? 1 : 0)
         .blur(radius: isDetailedCollapsed ? 0 : 14)
     }
 
     private var expandedContent: some View {
         VStack(alignment: .leading, spacing: 0) {
-            header(title: "Now Playing", subtitle: "Ambient mix queued for focus mode", artworkSize: 42)
             expandedDetails
         }
         .padding(.horizontal, 18)
-        .padding(.top, 14)
+        .padding(.top, 32)
         .padding(.bottom, 18)
         .frame(width: expandedSize.width, height: expandedSize.height, alignment: .top)
         .opacity(isExpanded ? 1 : 0)
         .blur(radius: isExpanded ? 0 : 18)
-    }
-
-    private func header(title: String, subtitle: String, artworkSize: CGFloat) -> some View {
-        HStack(spacing: 14) {
-            IslandArtworkView(size: artworkSize)
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title)
-                    .font(.headline)
-                    .foregroundStyle(.white)
-
-                Text(subtitle)
-                    .font(.footnote)
-                    .foregroundStyle(.white.opacity(0.72))
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Spacer(minLength: 0)
-
-            Image(systemName: "waveform")
-                .font(.title3.weight(.semibold))
-                .foregroundStyle(.white.opacity(0.8))
-                .frame(width: 28)
-        }
-        .frame(height: 46, alignment: .center)
     }
 
     @ViewBuilder
@@ -197,10 +177,10 @@ struct IslandListRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: item.systemImage)
-                .font(.headline)
+                .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.white)
-                .frame(width: 28, height: 28)
-                .background(.white.opacity(0.10), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .frame(width: 24, height: 24)
+                .background(.white.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(item.title)
@@ -213,30 +193,5 @@ struct IslandListRow: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-    }
-}
-
-struct IslandArtworkView: View {
-    var size: CGFloat = 44
-
-    var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color(red: 0.96, green: 0.50, blue: 0.20),
-                            Color(red: 0.92, green: 0.24, blue: 0.36)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-
-            Image(systemName: "sparkles.tv.fill")
-                .font(.title3.weight(.semibold))
-                .foregroundStyle(.white)
-        }
-        .frame(width: size, height: size)
     }
 }
