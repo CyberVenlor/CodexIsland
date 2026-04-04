@@ -19,11 +19,7 @@ struct IslandView: View {
         .frame(width: shellStyle.size.width, height: shellStyle.size.height)
         .contentShape(Rectangle())
         .onHover { isHovering in
-            if isHovering {
-                controller.expand()
-            } else {
-                controller.collapse()
-            }
+            controller.handleHoverChange(isHovering)
         }
         .contextMenu {
             ForEach(CollapsedIslandMode.allCases) { mode in

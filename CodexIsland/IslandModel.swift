@@ -31,9 +31,12 @@ struct IslandListItem: Identifiable, Hashable {
 @MainActor
 final class IslandController: ObservableObject {
     static let animation = Animation.spring(response: 0.52, dampingFraction: 0.84)
+    private static let hoverExitDelay: TimeInterval = 0.16
 
     @Published var collapsedMode: CollapsedIslandMode = .detailed
     @Published private(set) var isExpanded = false
+
+    private var pendingCollapse: DispatchWorkItem?
 
     let items: [IslandListItem] = [
         IslandListItem(title: "Now Playing", subtitle: "Ambient mix queued for focus mode", systemImage: "music.note"),
@@ -47,6 +50,26 @@ final class IslandController: ObservableObject {
         } else {
             .collapsed(collapsedMode)
         }
+    }
+
+    func handleHoverChange(_ isHovering: Bool) {
+        pendingCollapse?.cancel()
+        pendingCollapse = nil
+
+        if isHovering {
+            expand()
+            return
+        }
+
+        let collapseWorkItem = DispatchWorkItem { [weak self] in
+            Task { @MainActor in
+                guard let self else { return }
+                self.collapse()
+            }
+        }
+
+        pendingCollapse = collapseWorkItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.hoverExitDelay, execute: collapseWorkItem)
     }
 
     func expand() {
