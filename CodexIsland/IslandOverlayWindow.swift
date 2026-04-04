@@ -10,8 +10,8 @@ enum IslandOverlayLayout {
     static let topMargin: CGFloat = 0
 
     static let windowSize = CGSize(
-        width: IslandShellStyle.maximumSize.width + (horizontalPadding * 2),
-        height: IslandShellStyle.maximumSize.height + topPadding + bottomPadding
+        width: IslandShellStyle.canvasSize.width + (horizontalPadding * 2),
+        height: IslandShellStyle.canvasSize.height + topPadding + bottomPadding
     )
 
     static func frameOnScreen(_ screen: NSScreen) -> CGRect {

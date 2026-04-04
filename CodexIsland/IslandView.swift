@@ -13,7 +13,7 @@ struct IslandView: View {
     }
 
     private var canvasSize: CGSize {
-        IslandShellStyle.maximumSize
+        IslandShellStyle.canvasSize
     }
 
     var body: some View {
@@ -33,7 +33,6 @@ struct IslandView: View {
                 }
             }
         }
-        .animation(IslandController.animation, value: state)
     }
 
     private var shell: some View {
@@ -52,8 +51,8 @@ struct IslandView: View {
                 bottomRadius: shellStyle.bottomRadius
             )
             .stroke(Color.white.opacity(shellStyle.strokeOpacity), lineWidth: shellStrokeWidth)
-            .offset(y: -shellStrokeWidth)
         }
+        .offset(y: -shellStrokeWidth)
     }
 
     private var content: some View {

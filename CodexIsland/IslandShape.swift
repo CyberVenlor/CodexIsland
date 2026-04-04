@@ -12,7 +12,7 @@ struct IslandShellStyle: Equatable {
         switch state {
         case .collapsed(.detailed):
             IslandShellStyle(
-                size: CGSize(width: 294, height: 70),
+                size: CGSize(width: 272, height: 62),
                 topRadius: 16,
                 bottomRadius: 24,
                 backgroundOpacity: 0.98,
@@ -21,7 +21,7 @@ struct IslandShellStyle: Equatable {
             )
         case .collapsed(.simplified):
             IslandShellStyle(
-                size: CGSize(width: 226, height: 54),
+                size: CGSize(width: 208, height: 48),
                 topRadius: 14,
                 bottomRadius: 20,
                 backgroundOpacity: 0.05,
@@ -41,6 +41,12 @@ struct IslandShellStyle: Equatable {
     }
 
     static let maximumSize = CGSize(width: 336, height: 248)
+    static let overshootWidth: CGFloat = 32
+    static let overshootHeight: CGFloat = 36
+    static let canvasSize = CGSize(
+        width: maximumSize.width + overshootWidth,
+        height: maximumSize.height + overshootHeight
+    )
 }
 
 struct AnimatedNotchShape: Shape {
