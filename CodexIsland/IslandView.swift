@@ -44,7 +44,6 @@ struct IslandView: View {
             )
             .stroke(Color.white.opacity(shellStyle.strokeOpacity), lineWidth: 1.2)
         }
-        .shadow(color: .black.opacity(shellStyle.shadowOpacity), radius: 24, y: 16)
     }
 
     private var content: some View {

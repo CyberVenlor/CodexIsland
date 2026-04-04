@@ -8,22 +8,23 @@
 import SwiftUI
 
 struct ContentView: View {
-    @StateObject private var islandController = IslandController()
+    @ObservedObject var controller: IslandController
 
     var body: some View {
         ZStack(alignment: .top) {
-            IslandView(controller: islandController)
+            IslandView(controller: controller)
         }
         .padding(.horizontal, IslandOverlayLayout.horizontalPadding)
         .padding(.top, IslandOverlayLayout.topPadding)
         .padding(.bottom, IslandOverlayLayout.bottomPadding)
-        .background(IslandWindowBridge(controller: islandController))
+        .background(Color.clear)
+        .ignoresSafeArea()
     }
 }
 
 struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
-        ContentView()
+        ContentView(controller: IslandController())
             .padding(40)
             .background(Color(red: 0.93, green: 0.95, blue: 0.98))
     }
