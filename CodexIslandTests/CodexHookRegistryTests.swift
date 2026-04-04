@@ -58,6 +58,45 @@ struct CodexHookRegistryTests {
         #expect(response?.reason == "Destructive commands require manual review.")
     }
 
+    @Test func postToolUseCanAttachFeedback() throws {
+        let input = """
+        {
+          "session_id": "session-1",
+          "transcript_path": null,
+          "cwd": "/tmp/workspace",
+          "hook_event_name": "PostToolUse",
+          "model": "gpt-5.4",
+          "turn_id": "turn-1",
+          "tool_name": "Bash",
+          "tool_use_id": "tool-1",
+          "tool_input": {
+            "command": "swift test"
+          },
+          "tool_response": {
+            "exit_code": 1,
+            "stderr": "1 test failed"
+          }
+        }
+        """.data(using: .utf8)!
+
+        let registry = CodexHookRegistry()
+            .onPostToolUse { context in
+                #expect(context.toolInput.command == "swift test")
+                #expect(context.toolName == .bash)
+                return .postToolUseFeedback(
+                    reason: "Tests failed.",
+                    additionalContext: "Inspect the failing case before continuing."
+                )
+            }
+
+        let response = try registry.handle(input: input)
+
+        #expect(response?.decision == .block)
+        #expect(response?.reason == "Tests failed.")
+        #expect(response?.hookSpecificOutput?.hookEventName == .postToolUse)
+        #expect(response?.hookSpecificOutput?.additionalContext == "Inspect the failing case before continuing.")
+    }
+
     @Test func sessionEndUsesStopHookPayload() throws {
         let input = """
         {
