@@ -9,13 +9,19 @@ enum IslandOverlayLayout {
     static let bottomPadding: CGFloat = 28
     static let topMargin: CGFloat = 0
 
-    static func windowSize(for state: IslandPresentationState) -> CGSize {
-        let shellSize = IslandShellStyle.forState(state).size
+    static let windowSize = CGSize(
+        width: IslandShellStyle.maximumSize.width + (horizontalPadding * 2),
+        height: IslandShellStyle.maximumSize.height + topPadding + bottomPadding
+    )
 
-        return CGSize(
-            width: shellSize.width + (horizontalPadding * 2),
-            height: shellSize.height + topPadding + bottomPadding
+    static func frameOnScreen(_ screen: NSScreen) -> CGRect {
+        let screenFrame = screen.frame
+        let origin = CGPoint(
+            x: screenFrame.midX - (windowSize.width / 2),
+            y: screenFrame.maxY - windowSize.height - topMargin
         )
+
+        return CGRect(origin: origin, size: windowSize)
     }
 }
 
@@ -67,7 +73,7 @@ final class IslandOverlayController: NSObject {
     func start() {
         guard panel == nil else { return }
 
-        let initialFrame = CGRect(origin: .zero, size: IslandOverlayLayout.windowSize(for: islandController.presentationState))
+        let initialFrame = CGRect(origin: .zero, size: IslandOverlayLayout.windowSize)
         let panel = IslandPanel(
             contentRect: initialFrame,
             styleMask: [.borderless, .nonactivatingPanel],
@@ -141,13 +147,7 @@ final class IslandOverlayController: NSObject {
         guard let panel else { return }
         guard let screen = NSScreen.main ?? NSScreen.screens.first else { return }
 
-        let targetSize = IslandOverlayLayout.windowSize(for: islandController.presentationState)
-        let screenFrame = screen.frame
-        let targetOrigin = CGPoint(
-            x: screenFrame.midX - (targetSize.width / 2),
-            y: screenFrame.maxY - targetSize.height - IslandOverlayLayout.topMargin
-        )
-        let targetFrame = CGRect(origin: targetOrigin, size: targetSize)
+        let targetFrame = IslandOverlayLayout.frameOnScreen(screen)
 
         if animated {
             NSAnimationContext.runAnimationGroup { context in

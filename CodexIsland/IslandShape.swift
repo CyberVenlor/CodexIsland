@@ -39,61 +39,81 @@ struct IslandShellStyle: Equatable {
             )
         }
     }
+
+    static let maximumSize = CGSize(width: 336, height: 248)
 }
 
 struct AnimatedNotchShape: Shape {
+    var shellWidth: CGFloat
+    var shellHeight: CGFloat
     var topRadius: CGFloat
     var bottomRadius: CGFloat
 
-    var animatableData: AnimatablePair<CGFloat, CGFloat> {
-        get { AnimatablePair(topRadius, bottomRadius) }
+    var animatableData: AnimatablePair<AnimatablePair<CGFloat, CGFloat>, AnimatablePair<CGFloat, CGFloat>> {
+        get {
+            AnimatablePair(
+                AnimatablePair(shellWidth, shellHeight),
+                AnimatablePair(topRadius, bottomRadius)
+            )
+        }
         set {
-            topRadius = newValue.first
-            bottomRadius = newValue.second
+            shellWidth = newValue.first.first
+            shellHeight = newValue.first.second
+            topRadius = newValue.second.first
+            bottomRadius = newValue.second.second
         }
     }
 
     func path(in rect: CGRect) -> Path {
-        let top = min(max(0, topRadius), min(rect.width, rect.height) / 2)
-        let bottom = min(max(0, bottomRadius), min(rect.width, rect.height) / 2)
+        let width = min(max(0, shellWidth), rect.width)
+        let height = min(max(0, shellHeight), rect.height)
+        let shellRect = CGRect(
+            x: rect.midX - (width / 2),
+            y: rect.minY,
+            width: width,
+            height: height
+        )
+
+        let top = min(max(0, topRadius), min(shellRect.width, shellRect.height) / 2)
+        let bottom = min(max(0, bottomRadius), min(shellRect.width, shellRect.height) / 2)
 
         var path = Path()
 
         // Top edge.
-        path.move(to: CGPoint(x: rect.minX - top, y: rect.minY))
-        path.addLine(to: CGPoint(x: rect.maxX + top, y: rect.minY))
+        path.move(to: CGPoint(x: shellRect.minX - top, y: shellRect.minY))
+        path.addLine(to: CGPoint(x: shellRect.maxX + top, y: shellRect.minY))
 
         // Top-right corner.
         path.addQuadCurve(
-            to: CGPoint(x: rect.maxX, y: rect.minY + top),
-            control: CGPoint(x: rect.maxX, y: rect.minY)
+            to: CGPoint(x: shellRect.maxX, y: shellRect.minY + top),
+            control: CGPoint(x: shellRect.maxX, y: shellRect.minY)
         )
 
         // Right edge.
-        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - bottom))
+        path.addLine(to: CGPoint(x: shellRect.maxX, y: shellRect.maxY - bottom))
 
         // Bottom-right corner.
         path.addQuadCurve(
-            to: CGPoint(x: rect.maxX - bottom, y: rect.maxY),
-            control: CGPoint(x: rect.maxX, y: rect.maxY)
+            to: CGPoint(x: shellRect.maxX - bottom, y: shellRect.maxY),
+            control: CGPoint(x: shellRect.maxX, y: shellRect.maxY)
         )
 
         // Bottom edge.
-        path.addLine(to: CGPoint(x: rect.minX + bottom, y: rect.maxY))
+        path.addLine(to: CGPoint(x: shellRect.minX + bottom, y: shellRect.maxY))
 
         // Bottom-left corner.
         path.addQuadCurve(
-            to: CGPoint(x: rect.minX, y: rect.maxY - bottom),
-            control: CGPoint(x: rect.minX, y: rect.maxY)
+            to: CGPoint(x: shellRect.minX, y: shellRect.maxY - bottom),
+            control: CGPoint(x: shellRect.minX, y: shellRect.maxY)
         )
 
         // Left edge.
-        path.addLine(to: CGPoint(x: rect.minX, y: rect.minY + top))
+        path.addLine(to: CGPoint(x: shellRect.minX, y: shellRect.minY + top))
 
         // Top-left corner.
         path.addQuadCurve(
-            to: CGPoint(x: rect.minX - top, y: rect.minY),
-            control: CGPoint(x: rect.minX, y: rect.minY)
+            to: CGPoint(x: shellRect.minX - top, y: shellRect.minY),
+            control: CGPoint(x: shellRect.minX, y: shellRect.minY)
         )
 
         return path

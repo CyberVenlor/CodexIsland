@@ -11,12 +11,16 @@ struct IslandView: View {
         IslandShellStyle.forState(state)
     }
 
+    private var canvasSize: CGSize {
+        IslandShellStyle.maximumSize
+    }
+
     var body: some View {
         ZStack {
             shell
             content
         }
-        .frame(width: shellStyle.size.width, height: shellStyle.size.height, alignment: .top)
+        .frame(width: canvasSize.width, height: canvasSize.height, alignment: .top)
         .contentShape(Rectangle())
         .onHover { isHovering in
             controller.handleHoverChange(isHovering)
@@ -33,12 +37,16 @@ struct IslandView: View {
 
     private var shell: some View {
         AnimatedNotchShape(
+            shellWidth: shellStyle.size.width,
+            shellHeight: shellStyle.size.height,
             topRadius: shellStyle.topRadius,
             bottomRadius: shellStyle.bottomRadius
         )
         .fill(.black.opacity(shellStyle.backgroundOpacity))
         .overlay {
             AnimatedNotchShape(
+                shellWidth: shellStyle.size.width,
+                shellHeight: shellStyle.size.height,
                 topRadius: shellStyle.topRadius,
                 bottomRadius: shellStyle.bottomRadius
             )
@@ -58,6 +66,9 @@ struct IslandContentView: View {
     let state: IslandPresentationState
     let items: [IslandListItem]
 
+    private let detailedSize = IslandShellStyle.forState(.collapsed(.detailed)).size
+    private let expandedSize = IslandShellStyle.forState(.expanded).size
+
     private var isExpanded: Bool {
         if case .expanded = state {
             return true
@@ -65,38 +76,67 @@ struct IslandContentView: View {
         return false
     }
 
-    var body: some View {
-        Group {
-            if case .collapsed(.simplified) = state {
-                Color.clear
-            } else {
-                VStack(alignment: .leading, spacing: 0) {
-                    header
-
-                    expandedDetails
-                }
-                .padding(.horizontal, isExpanded ? 18 : 16)
-                .padding(.top, isExpanded ? 14 : 12)
-                .padding(.bottom, isExpanded ? 18 : 12)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            }
+    private var isDetailedCollapsed: Bool {
+        if case .collapsed(.detailed) = state {
+            return true
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        return false
     }
 
-    private var header: some View {
+    var body: some View {
+        ZStack(alignment: .top) {
+            collapsedContent
+            expandedContent
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .mask {
+            AnimatedNotchShape(
+                shellWidth: IslandShellStyle.forState(state).size.width,
+                shellHeight: IslandShellStyle.forState(state).size.height,
+                topRadius: IslandShellStyle.forState(state).topRadius,
+                bottomRadius: IslandShellStyle.forState(state).bottomRadius
+            )
+        }
+    }
+
+    private var collapsedContent: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            header(title: "Playback Ready", subtitle: "Ambient mix queued for focus mode", artworkSize: 44)
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 12)
+        .padding(.bottom, 12)
+        .frame(width: detailedSize.width, height: detailedSize.height, alignment: .top)
+        .opacity(isDetailedCollapsed ? 1 : 0)
+        .blur(radius: isDetailedCollapsed ? 0 : 14)
+    }
+
+    private var expandedContent: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            header(title: "Now Playing", subtitle: "Ambient mix queued for focus mode", artworkSize: 42)
+            expandedDetails
+        }
+        .padding(.horizontal, 18)
+        .padding(.top, 14)
+        .padding(.bottom, 18)
+        .frame(width: expandedSize.width, height: expandedSize.height, alignment: .top)
+        .opacity(isExpanded ? 1 : 0)
+        .blur(radius: isExpanded ? 0 : 18)
+    }
+
+    private func header(title: String, subtitle: String, artworkSize: CGFloat) -> some View {
         HStack(spacing: 14) {
-            IslandArtworkView(size: isExpanded ? 42 : 44)
+            IslandArtworkView(size: artworkSize)
 
             VStack(alignment: .leading, spacing: 3) {
-                Text(isExpanded ? "Now Playing" : "Playback Ready")
+                Text(title)
                     .font(.headline)
                     .foregroundStyle(.white)
 
-                Text("Ambient mix queued for focus mode")
+                Text(subtitle)
                     .font(.footnote)
                     .foregroundStyle(.white.opacity(0.72))
-                    .lineLimit(isExpanded ? 2 : 1)
+                    .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
@@ -115,26 +155,22 @@ struct IslandContentView: View {
         let additionalItems = Array(items.dropFirst())
 
         VStack(alignment: .leading, spacing: 0) {
-            if isExpanded {
-                Divider()
-                    .overlay(.white.opacity(0.08))
-                    .padding(.top, 14)
-                    .padding(.bottom, 12)
+            Divider()
+                .overlay(.white.opacity(0.08))
+                .padding(.top, 14)
+                .padding(.bottom, 12)
 
-                ForEach(Array(additionalItems.enumerated()), id: \.element.id) { index, item in
-                    IslandListRow(item: item)
+            ForEach(Array(additionalItems.enumerated()), id: \.element.id) { index, item in
+                IslandListRow(item: item)
 
-                    if index < additionalItems.count - 1 {
-                        Divider()
-                            .overlay(.white.opacity(0.08))
-                            .padding(.vertical, 8)
-                    }
+                if index < additionalItems.count - 1 {
+                    Divider()
+                        .overlay(.white.opacity(0.08))
+                        .padding(.vertical, 8)
                 }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .opacity(isExpanded ? 1 : 0)
-        .offset(y: isExpanded ? 0 : -8)
     }
 }
 
