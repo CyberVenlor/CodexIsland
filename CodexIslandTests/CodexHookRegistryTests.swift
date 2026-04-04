@@ -125,4 +125,54 @@ struct CodexHookRegistryTests {
         #expect(response?.reason == "Run one more lint pass.")
         #expect(encodedString?.contains("\"decision\":\"block\"") == true)
     }
+
+    @Test func recentSessionsLoadTitlesAndStates() throws {
+        let testRoot = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let sessionsDirectory = testRoot.appendingPathComponent("sessions/2026/04/04", isDirectory: true)
+        try FileManager.default.createDirectory(at: sessionsDirectory, withIntermediateDirectories: true)
+
+        let sessionIndex = """
+        {"id":"session-running","thread_name":"Active Session","updated_at":"2026-04-04T11:36:35Z"}
+        {"id":"session-idle","thread_name":"Idle Session","updated_at":"2026-04-04T11:31:23Z"}
+        """
+        try sessionIndex.write(to: testRoot.appendingPathComponent("session_index.jsonl"), atomically: true, encoding: .utf8)
+
+        let globalState = """
+        {"electron-persisted-atom-state":{"terminal-open-by-key":{"session-running":true}}}
+        """
+        try globalState.write(to: testRoot.appendingPathComponent(".codex-global-state.json"), atomically: true, encoding: .utf8)
+
+        let runningTranscript = """
+        {"timestamp":"2026-04-04T12:24:01.190Z","type":"session_meta","payload":{"id":"session-running"}}
+        {"timestamp":"2026-04-04T12:24:07.708Z","type":"response_item","payload":{"type":"message","status":"completed"}}
+        """
+        try runningTranscript.write(
+            to: sessionsDirectory.appendingPathComponent("rollout-running.jsonl"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let idleTranscript = """
+        {"timestamp":"2026-04-04T12:20:01.190Z","type":"session_meta","payload":{"id":"session-idle"}}
+        {"timestamp":"2026-04-04T12:28:07.708Z","type":"event_msg","payload":{"type":"task_complete"}}
+        """
+        try idleTranscript.write(
+            to: sessionsDirectory.appendingPathComponent("rollout-idle.jsonl"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let store = CodexSessionStore(
+            codexHomeURL: testRoot,
+            now: ISO8601DateFormatter().date(from: "2026-04-04T12:40:00Z")!
+        )
+
+        let sessions = try store.recentSessions(limit: 2)
+
+        #expect(sessions.count == 2)
+        #expect(sessions[0].title == "Active Session")
+        #expect(sessions[0].state == .running)
+        #expect(sessions[1].title == "Idle Session")
+        #expect(sessions[1].state == .completed)
+    }
 }
