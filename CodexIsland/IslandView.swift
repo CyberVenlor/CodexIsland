@@ -16,7 +16,7 @@ struct IslandView: View {
             shell
             content
         }
-        .frame(width: shellStyle.size.width, height: shellStyle.size.height)
+        .frame(width: shellStyle.size.width, height: shellStyle.size.height, alignment: .top)
         .contentShape(Rectangle())
         .onHover { isHovering in
             controller.handleHoverChange(isHovering)
@@ -34,49 +34,75 @@ struct IslandView: View {
     private var shell: some View {
         AnimatedNotchShape(
             topCornerRadius: shellStyle.topCornerRadius,
-            bottomCornerRadius: shellStyle.bottomCornerRadius
+            bottomCornerRadius: shellStyle.bottomCornerRadius,
+            shoulderInset: shellStyle.shoulderInset,
+            shoulderDepth: shellStyle.shoulderDepth
         )
         .fill(.black.opacity(shellStyle.backgroundOpacity))
         .overlay {
             AnimatedNotchShape(
                 topCornerRadius: shellStyle.topCornerRadius,
-                bottomCornerRadius: shellStyle.bottomCornerRadius
+                bottomCornerRadius: shellStyle.bottomCornerRadius,
+                shoulderInset: shellStyle.shoulderInset,
+                shoulderDepth: shellStyle.shoulderDepth
             )
             .stroke(Color.white.opacity(shellStyle.strokeOpacity), lineWidth: 1.2)
         }
         .shadow(color: .black.opacity(shellStyle.shadowOpacity), radius: 24, y: 16)
     }
 
-    @ViewBuilder
     private var content: some View {
-        switch state {
-        case .collapsed(.detailed):
-            CollapsedDetailedIslandView()
-                .transition(.opacity.combined(with: .scale(scale: 0.97)))
-        case .collapsed(.simplified):
-            CollapsedSimplifiedIslandView()
-                .transition(.opacity)
-        case .expanded:
-            ExpandedIslandView(items: controller.items)
-                .transition(.opacity.combined(with: .scale(scale: 0.98)))
-        }
+        IslandContentView(
+            state: state,
+            items: controller.items
+        )
     }
 }
 
-struct CollapsedDetailedIslandView: View {
+struct IslandContentView: View {
+    let state: IslandPresentationState
+    let items: [IslandListItem]
+
+    private var isExpanded: Bool {
+        if case .expanded = state {
+            return true
+        }
+        return false
+    }
+
     var body: some View {
+        Group {
+            if case .collapsed(.simplified) = state {
+                Color.clear
+            } else {
+                VStack(alignment: .leading, spacing: 0) {
+                    header
+
+                    expandedDetails
+                }
+                .padding(.horizontal, isExpanded ? 18 : 16)
+                .padding(.top, isExpanded ? 14 : 12)
+                .padding(.bottom, isExpanded ? 18 : 12)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    private var header: some View {
         HStack(spacing: 14) {
-            IslandArtworkView()
+            IslandArtworkView(size: isExpanded ? 42 : 44)
 
             VStack(alignment: .leading, spacing: 3) {
-                Text("Playback Ready")
+                Text(isExpanded ? "Now Playing" : "Playback Ready")
                     .font(.headline)
                     .foregroundStyle(.white)
 
                 Text("Ambient mix queued for focus mode")
                     .font(.footnote)
                     .foregroundStyle(.white.opacity(0.72))
-                    .lineLimit(1)
+                    .lineLimit(isExpanded ? 2 : 1)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             Spacer(minLength: 0)
@@ -84,44 +110,36 @@ struct CollapsedDetailedIslandView: View {
             Image(systemName: "waveform")
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(.white.opacity(0.8))
+                .frame(width: 28)
         }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 12)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(height: 46, alignment: .center)
     }
-}
 
-struct CollapsedSimplifiedIslandView: View {
-    var body: some View {
-        Color.clear
-    }
-}
+    @ViewBuilder
+    private var expandedDetails: some View {
+        let additionalItems = Array(items.dropFirst())
 
-struct ExpandedIslandView: View {
-    let items: [IslandListItem]
-
-    var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("Dynamic Island")
-                .font(.headline)
-                .foregroundStyle(.white)
-                .padding(.bottom, 14)
+            if isExpanded {
+                Divider()
+                    .overlay(.white.opacity(0.08))
+                    .padding(.top, 14)
+                    .padding(.bottom, 12)
 
-            ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                IslandListRow(item: item)
+                ForEach(Array(additionalItems.enumerated()), id: \.element.id) { index, item in
+                    IslandListRow(item: item)
 
-                if index < items.count - 1 {
-                    Divider()
-                        .overlay(.white.opacity(0.08))
-                        .padding(.vertical, 8)
+                    if index < additionalItems.count - 1 {
+                        Divider()
+                            .overlay(.white.opacity(0.08))
+                            .padding(.vertical, 8)
+                    }
                 }
             }
-
-            Spacer(minLength: 0)
         }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 18)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .opacity(isExpanded ? 1 : 0)
+        .offset(y: isExpanded ? 0 : -8)
     }
 }
 
@@ -151,6 +169,8 @@ struct IslandListRow: View {
 }
 
 struct IslandArtworkView: View {
+    var size: CGFloat = 44
+
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -169,6 +189,6 @@ struct IslandArtworkView: View {
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(.white)
         }
-        .frame(width: 44, height: 44)
+        .frame(width: size, height: size)
     }
 }
