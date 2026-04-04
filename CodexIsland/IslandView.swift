@@ -2,6 +2,7 @@ import SwiftUI
 
 struct IslandView: View {
     @ObservedObject var controller: IslandController
+    private let shellStrokeWidth: CGFloat = 1.2
 
     private var state: IslandPresentationState {
         controller.presentationState
@@ -50,7 +51,8 @@ struct IslandView: View {
                 topRadius: shellStyle.topRadius,
                 bottomRadius: shellStyle.bottomRadius
             )
-            .stroke(Color.white.opacity(shellStyle.strokeOpacity), lineWidth: 1.2)
+            .stroke(Color.white.opacity(shellStyle.strokeOpacity), lineWidth: shellStrokeWidth)
+            .offset(y: -shellStrokeWidth)
         }
     }
 
