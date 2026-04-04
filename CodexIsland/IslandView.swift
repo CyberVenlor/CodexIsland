@@ -18,14 +18,9 @@ struct IslandView: View {
 
     var body: some View {
         ZStack {
-            shell
-            content
+            islandBody
         }
         .frame(width: canvasSize.width, height: canvasSize.height, alignment: .top)
-        .contentShape(Rectangle())
-        .onHover { isHovering in
-            controller.handleHoverChange(isHovering)
-        }
         .contextMenu {
             ForEach(CollapsedIslandMode.allCases) { mode in
                 Button(mode.title) {
@@ -33,6 +28,27 @@ struct IslandView: View {
                 }
             }
         }
+    }
+
+    private var islandBody: some View {
+        ZStack {
+            shell
+            content
+        }
+        .frame(width: canvasSize.width, height: canvasSize.height, alignment: .top)
+        .overlay(alignment: .top) {
+            hoverHitArea
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    private var hoverHitArea: some View {
+        Color.clear
+            .frame(width: shellStyle.size.width, height: shellStyle.size.height)
+            .contentShape(Rectangle())
+            .onHover { isHovering in
+                controller.handleHoverChange(isHovering)
+            }
     }
 
     private var shell: some View {
