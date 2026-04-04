@@ -2,10 +2,8 @@ import SwiftUI
 
 struct IslandShellStyle: Equatable {
     let size: CGSize
-    let topCornerRadius: CGFloat
-    let bottomCornerRadius: CGFloat
-    let shoulderInset: CGFloat
-    let shoulderDepth: CGFloat
+    let topRadius: CGFloat
+    let bottomRadius: CGFloat
     let backgroundOpacity: Double
     let strokeOpacity: Double
     let shadowOpacity: Double
@@ -15,10 +13,8 @@ struct IslandShellStyle: Equatable {
         case .collapsed(.detailed):
             IslandShellStyle(
                 size: CGSize(width: 294, height: 70),
-                topCornerRadius: 12,
-                bottomCornerRadius: 24,
-                shoulderInset: 0,
-                shoulderDepth: 0,
+                topRadius: 16,
+                bottomRadius: 24,
                 backgroundOpacity: 0.98,
                 strokeOpacity: 0.18,
                 shadowOpacity: 0.20
@@ -26,10 +22,8 @@ struct IslandShellStyle: Equatable {
         case .collapsed(.simplified):
             IslandShellStyle(
                 size: CGSize(width: 226, height: 54),
-                topCornerRadius: 10,
-                bottomCornerRadius: 20,
-                shoulderInset: 0,
-                shoulderDepth: 0,
+                topRadius: 14,
+                bottomRadius: 20,
                 backgroundOpacity: 0.05,
                 strokeOpacity: 0.72,
                 shadowOpacity: 0.10
@@ -37,10 +31,8 @@ struct IslandShellStyle: Equatable {
         case .expanded:
             IslandShellStyle(
                 size: CGSize(width: 336, height: 248),
-                topCornerRadius: 14,
-                bottomCornerRadius: 34,
-                shoulderInset: 28,
-                shoulderDepth: 44,
+                topRadius: 16,
+                bottomRadius: 34,
                 backgroundOpacity: 0.98,
                 strokeOpacity: 0.12,
                 shadowOpacity: 0.26
@@ -50,67 +42,58 @@ struct IslandShellStyle: Equatable {
 }
 
 struct AnimatedNotchShape: Shape {
-    var topCornerRadius: CGFloat
-    var bottomCornerRadius: CGFloat
-    var shoulderInset: CGFloat
-    var shoulderDepth: CGFloat
+    var topRadius: CGFloat
+    var bottomRadius: CGFloat
 
-    var animatableData: AnimatablePair<AnimatablePair<CGFloat, CGFloat>, AnimatablePair<CGFloat, CGFloat>> {
-        get {
-            AnimatablePair(
-                AnimatablePair(topCornerRadius, bottomCornerRadius),
-                AnimatablePair(shoulderInset, shoulderDepth)
-            )
-        }
+    var animatableData: AnimatablePair<CGFloat, CGFloat> {
+        get { AnimatablePair(topRadius, bottomRadius) }
         set {
-            topCornerRadius = newValue.first.first
-            bottomCornerRadius = newValue.first.second
-            shoulderInset = newValue.second.first
-            shoulderDepth = newValue.second.second
+            topRadius = newValue.first
+            bottomRadius = newValue.second
         }
     }
 
     func path(in rect: CGRect) -> Path {
-        let topRadius = min(topCornerRadius, rect.width / 2, rect.height / 2)
-        let bottomRadius = min(bottomCornerRadius, rect.width / 2, rect.height / 2)
-        let inset = min(max(0, shoulderInset), rect.width / 2 - topRadius)
-        let depth = min(max(0, shoulderDepth), rect.height - bottomRadius - topRadius)
-        let topLeftX = rect.minX + inset
-        let topRightX = rect.maxX - inset
-        let shoulderY = rect.minY + topRadius + depth
+        let top = min(max(0, topRadius), min(rect.width, rect.height) / 2)
+        let bottom = min(max(0, bottomRadius), min(rect.width, rect.height) / 2)
 
         var path = Path()
 
-        path.move(to: CGPoint(x: topLeftX + topRadius, y: rect.minY))
-        path.addLine(to: CGPoint(x: topRightX - topRadius, y: rect.minY))
+        // Top edge.
+        path.move(to: CGPoint(x: rect.minX - top, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX + top, y: rect.minY))
+
+        // Top-right corner.
         path.addQuadCurve(
-            to: CGPoint(x: topRightX, y: rect.minY + topRadius),
-            control: CGPoint(x: topRightX, y: rect.minY)
+            to: CGPoint(x: rect.maxX, y: rect.minY + top),
+            control: CGPoint(x: rect.maxX, y: rect.minY)
         )
-        path.addCurve(
-            to: CGPoint(x: rect.maxX, y: shoulderY),
-            control1: CGPoint(x: topRightX, y: rect.minY + topRadius + depth * 0.32),
-            control2: CGPoint(x: rect.maxX, y: rect.minY + topRadius + depth * 0.72)
-        )
-        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - bottomRadius))
+
+        // Right edge.
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - bottom))
+
+        // Bottom-right corner.
         path.addQuadCurve(
-            to: CGPoint(x: rect.maxX - bottomRadius, y: rect.maxY),
+            to: CGPoint(x: rect.maxX - bottom, y: rect.maxY),
             control: CGPoint(x: rect.maxX, y: rect.maxY)
         )
-        path.addLine(to: CGPoint(x: rect.minX + bottomRadius, y: rect.maxY))
+
+        // Bottom edge.
+        path.addLine(to: CGPoint(x: rect.minX + bottom, y: rect.maxY))
+
+        // Bottom-left corner.
         path.addQuadCurve(
-            to: CGPoint(x: rect.minX, y: rect.maxY - bottomRadius),
+            to: CGPoint(x: rect.minX, y: rect.maxY - bottom),
             control: CGPoint(x: rect.minX, y: rect.maxY)
         )
-        path.addLine(to: CGPoint(x: rect.minX, y: shoulderY))
-        path.addCurve(
-            to: CGPoint(x: topLeftX, y: rect.minY + topRadius),
-            control1: CGPoint(x: rect.minX, y: rect.minY + topRadius + depth * 0.72),
-            control2: CGPoint(x: topLeftX, y: rect.minY + topRadius + depth * 0.32)
-        )
+
+        // Left edge.
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.minY + top))
+
+        // Top-left corner.
         path.addQuadCurve(
-            to: CGPoint(x: topLeftX + topRadius, y: rect.minY),
-            control: CGPoint(x: topLeftX, y: rect.minY)
+            to: CGPoint(x: rect.minX - top, y: rect.minY),
+            control: CGPoint(x: rect.minX, y: rect.minY)
         )
 
         return path

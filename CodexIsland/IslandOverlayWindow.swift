@@ -5,9 +5,9 @@ import SwiftUI
 
 enum IslandOverlayLayout {
     static let horizontalPadding: CGFloat = 20
-    static let topPadding: CGFloat = 4
+    static let topPadding: CGFloat = 0
     static let bottomPadding: CGFloat = 28
-    static let topMargin: CGFloat = 6
+    static let topMargin: CGFloat = 0
 
     static func windowSize(for state: IslandPresentationState) -> CGSize {
         let shellSize = IslandShellStyle.forState(state).size

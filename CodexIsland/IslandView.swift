@@ -33,18 +33,14 @@ struct IslandView: View {
 
     private var shell: some View {
         AnimatedNotchShape(
-            topCornerRadius: shellStyle.topCornerRadius,
-            bottomCornerRadius: shellStyle.bottomCornerRadius,
-            shoulderInset: shellStyle.shoulderInset,
-            shoulderDepth: shellStyle.shoulderDepth
+            topRadius: shellStyle.topRadius,
+            bottomRadius: shellStyle.bottomRadius
         )
         .fill(.black.opacity(shellStyle.backgroundOpacity))
         .overlay {
             AnimatedNotchShape(
-                topCornerRadius: shellStyle.topCornerRadius,
-                bottomCornerRadius: shellStyle.bottomCornerRadius,
-                shoulderInset: shellStyle.shoulderInset,
-                shoulderDepth: shellStyle.shoulderDepth
+                topRadius: shellStyle.topRadius,
+                bottomRadius: shellStyle.bottomRadius
             )
             .stroke(Color.white.opacity(shellStyle.strokeOpacity), lineWidth: 1.2)
         }
