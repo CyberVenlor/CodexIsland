@@ -1,0 +1,554 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXContainerItemProxy section */
+		D7D6CAE72F812B89002869C9 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = D7D6CACD2F812B88002869C9 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = D7D6CAD42F812B88002869C9;
+			remoteInfo = CodexIsland;
+		};
+		D7D6CAF12F812B89002869C9 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = D7D6CACD2F812B88002869C9 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = D7D6CAD42F812B88002869C9;
+			remoteInfo = CodexIsland;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		D7D6CAD52F812B88002869C9 /* CodexIsland.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CodexIsland.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		D7D6CAE62F812B89002869C9 /* CodexIslandTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CodexIslandTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		D7D6CAF02F812B89002869C9 /* CodexIslandUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CodexIslandUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		D7D6CAD72F812B88002869C9 /* CodexIsland */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = CodexIsland;
+			sourceTree = "<group>";
+		};
+		D7D6CAE92F812B89002869C9 /* CodexIslandTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = CodexIslandTests;
+			sourceTree = "<group>";
+		};
+		D7D6CAF32F812B89002869C9 /* CodexIslandUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = CodexIslandUITests;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		D7D6CAD22F812B88002869C9 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D7D6CAE32F812B89002869C9 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D7D6CAED2F812B89002869C9 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		D7D6CACC2F812B88002869C9 = {
+			isa = PBXGroup;
+			children = (
+				D7D6CAD72F812B88002869C9 /* CodexIsland */,
+				D7D6CAE92F812B89002869C9 /* CodexIslandTests */,
+				D7D6CAF32F812B89002869C9 /* CodexIslandUITests */,
+				D7D6CAD62F812B88002869C9 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		D7D6CAD62F812B88002869C9 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				D7D6CAD52F812B88002869C9 /* CodexIsland.app */,
+				D7D6CAE62F812B89002869C9 /* CodexIslandTests.xctest */,
+				D7D6CAF02F812B89002869C9 /* CodexIslandUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		D7D6CAD42F812B88002869C9 /* CodexIsland */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D7D6CAFA2F812B89002869C9 /* Build configuration list for PBXNativeTarget "CodexIsland" */;
+			buildPhases = (
+				D7D6CAD12F812B88002869C9 /* Sources */,
+				D7D6CAD22F812B88002869C9 /* Frameworks */,
+				D7D6CAD32F812B88002869C9 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				D7D6CAD72F812B88002869C9 /* CodexIsland */,
+			);
+			name = CodexIsland;
+			packageProductDependencies = (
+			);
+			productName = CodexIsland;
+			productReference = D7D6CAD52F812B88002869C9 /* CodexIsland.app */;
+			productType = "com.apple.product-type.application";
+		};
+		D7D6CAE52F812B89002869C9 /* CodexIslandTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D7D6CAFD2F812B89002869C9 /* Build configuration list for PBXNativeTarget "CodexIslandTests" */;
+			buildPhases = (
+				D7D6CAE22F812B89002869C9 /* Sources */,
+				D7D6CAE32F812B89002869C9 /* Frameworks */,
+				D7D6CAE42F812B89002869C9 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				D7D6CAE82F812B89002869C9 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				D7D6CAE92F812B89002869C9 /* CodexIslandTests */,
+			);
+			name = CodexIslandTests;
+			packageProductDependencies = (
+			);
+			productName = CodexIslandTests;
+			productReference = D7D6CAE62F812B89002869C9 /* CodexIslandTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		D7D6CAEF2F812B89002869C9 /* CodexIslandUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D7D6CB002F812B89002869C9 /* Build configuration list for PBXNativeTarget "CodexIslandUITests" */;
+			buildPhases = (
+				D7D6CAEC2F812B89002869C9 /* Sources */,
+				D7D6CAED2F812B89002869C9 /* Frameworks */,
+				D7D6CAEE2F812B89002869C9 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				D7D6CAF22F812B89002869C9 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				D7D6CAF32F812B89002869C9 /* CodexIslandUITests */,
+			);
+			name = CodexIslandUITests;
+			packageProductDependencies = (
+			);
+			productName = CodexIslandUITests;
+			productReference = D7D6CAF02F812B89002869C9 /* CodexIslandUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		D7D6CACD2F812B88002869C9 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1620;
+				LastUpgradeCheck = 1620;
+				TargetAttributes = {
+					D7D6CAD42F812B88002869C9 = {
+						CreatedOnToolsVersion = 16.2;
+					};
+					D7D6CAE52F812B89002869C9 = {
+						CreatedOnToolsVersion = 16.2;
+						TestTargetID = D7D6CAD42F812B88002869C9;
+					};
+					D7D6CAEF2F812B89002869C9 = {
+						CreatedOnToolsVersion = 16.2;
+						TestTargetID = D7D6CAD42F812B88002869C9;
+					};
+				};
+			};
+			buildConfigurationList = D7D6CAD02F812B88002869C9 /* Build configuration list for PBXProject "CodexIsland" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = D7D6CACC2F812B88002869C9;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = D7D6CAD62F812B88002869C9 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				D7D6CAD42F812B88002869C9 /* CodexIsland */,
+				D7D6CAE52F812B89002869C9 /* CodexIslandTests */,
+				D7D6CAEF2F812B89002869C9 /* CodexIslandUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		D7D6CAD32F812B88002869C9 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D7D6CAE42F812B89002869C9 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D7D6CAEE2F812B89002869C9 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		D7D6CAD12F812B88002869C9 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D7D6CAE22F812B89002869C9 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D7D6CAEC2F812B89002869C9 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		D7D6CAE82F812B89002869C9 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = D7D6CAD42F812B88002869C9 /* CodexIsland */;
+			targetProxy = D7D6CAE72F812B89002869C9 /* PBXContainerItemProxy */;
+		};
+		D7D6CAF22F812B89002869C9 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = D7D6CAD42F812B88002869C9 /* CodexIsland */;
+			targetProxy = D7D6CAF12F812B89002869C9 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		D7D6CAF82F812B89002869C9 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.2;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		D7D6CAF92F812B89002869C9 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.2;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+			};
+			name = Release;
+		};
+		D7D6CAFB2F812B89002869C9 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = CodexIsland/CodexIsland.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"CodexIsland/Preview Content\"";
+				DEVELOPMENT_TEAM = 5V22CLHNY9;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.n3ur0.CodexIsland;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		D7D6CAFC2F812B89002869C9 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = CodexIsland/CodexIsland.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"CodexIsland/Preview Content\"";
+				DEVELOPMENT_TEAM = 5V22CLHNY9;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.n3ur0.CodexIsland;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		D7D6CAFE2F812B89002869C9 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 5V22CLHNY9;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.2;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.n3ur0.CodexIslandTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/CodexIsland.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/CodexIsland";
+			};
+			name = Debug;
+		};
+		D7D6CAFF2F812B89002869C9 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 5V22CLHNY9;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.2;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.n3ur0.CodexIslandTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/CodexIsland.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/CodexIsland";
+			};
+			name = Release;
+		};
+		D7D6CB012F812B89002869C9 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 5V22CLHNY9;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.n3ur0.CodexIslandUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = CodexIsland;
+			};
+			name = Debug;
+		};
+		D7D6CB022F812B89002869C9 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 5V22CLHNY9;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.n3ur0.CodexIslandUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = CodexIsland;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		D7D6CAD02F812B88002869C9 /* Build configuration list for PBXProject "CodexIsland" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D7D6CAF82F812B89002869C9 /* Debug */,
+				D7D6CAF92F812B89002869C9 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		D7D6CAFA2F812B89002869C9 /* Build configuration list for PBXNativeTarget "CodexIsland" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D7D6CAFB2F812B89002869C9 /* Debug */,
+				D7D6CAFC2F812B89002869C9 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		D7D6CAFD2F812B89002869C9 /* Build configuration list for PBXNativeTarget "CodexIslandTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D7D6CAFE2F812B89002869C9 /* Debug */,
+				D7D6CAFF2F812B89002869C9 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		D7D6CB002F812B89002869C9 /* Build configuration list for PBXNativeTarget "CodexIslandUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D7D6CB012F812B89002869C9 /* Debug */,
+				D7D6CB022F812B89002869C9 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = D7D6CACD2F812B88002869C9 /* Project object */;
+}
