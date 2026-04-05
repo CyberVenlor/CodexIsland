@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct SettingsPanelView: View {
@@ -113,6 +114,8 @@ struct SettingsPanelView: View {
             hooksView
         case .about:
             aboutView
+        case .quit:
+            quitView
         }
     }
 
@@ -177,6 +180,27 @@ struct SettingsPanelView: View {
         }
     }
 
+    private var quitView: some View {
+        formSection {
+            settingsCard("Quit CodexIsland") {
+                Text("Close the island overlay and terminate the app immediately.")
+                    .font(.subheadline)
+                    .foregroundStyle(.white.opacity(0.72))
+
+                Button(role: .destructive) {
+                    NSApplication.shared.terminate(nil)
+                } label: {
+                    Label("Quit CodexIsland", systemImage: "power")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.red)
+            }
+        }
+    }
+
     private func formSection<Content: View>(@ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             content()
@@ -221,6 +245,7 @@ private enum SettingsTab: String, CaseIterable, Identifiable {
     case personalized
     case hooks
     case about
+    case quit
 
     var id: String { rawValue }
 
@@ -234,6 +259,8 @@ private enum SettingsTab: String, CaseIterable, Identifiable {
             "Hooks"
         case .about:
             "About"
+        case .quit:
+            "Quit"
         }
     }
 
@@ -247,6 +274,8 @@ private enum SettingsTab: String, CaseIterable, Identifiable {
             "Hook toggles and endpoint settings"
         case .about:
             "Build information and support"
+        case .quit:
+            "Exit the application"
         }
     }
 
@@ -260,6 +289,8 @@ private enum SettingsTab: String, CaseIterable, Identifiable {
             "link"
         case .about:
             "info.circle"
+        case .quit:
+            "power"
         }
     }
 
@@ -273,6 +304,8 @@ private enum SettingsTab: String, CaseIterable, Identifiable {
             Color.orange.opacity(0.18)
         case .about:
             Color.gray.opacity(0.18)
+        case .quit:
+            Color.red.opacity(0.16)
         }
     }
 
@@ -286,6 +319,8 @@ private enum SettingsTab: String, CaseIterable, Identifiable {
             Color.orange.opacity(0.9)
         case .about:
             Color.white.opacity(0.9)
+        case .quit:
+            Color.red.opacity(0.9)
         }
     }
 
@@ -299,6 +334,8 @@ private enum SettingsTab: String, CaseIterable, Identifiable {
             Color.orange.opacity(0.95)
         case .about:
             Color.white.opacity(0.88)
+        case .quit:
+            Color.red.opacity(0.95)
         }
     }
 
@@ -306,6 +343,8 @@ private enum SettingsTab: String, CaseIterable, Identifiable {
         switch self {
         case .about:
             Color.black.opacity(0.88)
+        case .quit:
+            Color.white
         default:
             Color.white
         }
