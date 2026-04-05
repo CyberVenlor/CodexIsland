@@ -5,6 +5,7 @@ import Foundation
 @MainActor
 final class CodexSessionController: ObservableObject {
     @Published private(set) var sessions: [CodexSessionGroup] = []
+    @Published private(set) var runningSessionCount: Int = 0
 
     private let persistence: CodexSessionPersisting
     private let threadNameStore: CodexSessionThreadNameStore
@@ -184,7 +185,7 @@ final class CodexSessionController: ObservableObject {
         return "\(session.sessionID)::\(toolUseID)"
     }
 
-    private func groupedSessions(from rawSessions: Dictionary<String, CodexRecentSession>.Values) -> [CodexSessionGroup] {
+    private func allSessionGroups(from rawSessions: Dictionary<String, CodexRecentSession>.Values) -> [CodexSessionGroup] {
         let grouped = Dictionary(grouping: rawSessions, by: \.sessionID)
         let threadNames = threadNameStore.threadNamesBySessionID()
 
@@ -228,7 +229,10 @@ final class CodexSessionController: ObservableObject {
                 toolCalls: toolCalls
             )
         }
-        .sorted {
+    }
+
+    private func sortedSessionGroups(_ groups: [CodexSessionGroup]) -> [CodexSessionGroup] {
+        groups.sorted {
             let lhsPriority = sessionSortPriority(for: $0.state)
             let rhsPriority = sessionSortPriority(for: $1.state)
 
@@ -261,8 +265,11 @@ final class CodexSessionController: ObservableObject {
         }
 
         let visibleToolID = approvalQueue.first
+        let allGroups = allSessionGroups(from: sessionIndex.values)
+        runningSessionCount = allGroups.filter { $0.state == .running }.count
 
-        sessions = groupedSessions(from: sessionIndex.values)
+        sessions = sortedSessionGroups(allGroups)
+            .prefix(12)
             .map { group in
                 CodexSessionGroup(
                     id: group.id,

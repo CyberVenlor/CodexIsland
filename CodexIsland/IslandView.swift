@@ -210,6 +210,15 @@ struct IslandContentView: View {
         return false
     }
 
+    private var collapsedRunningSessionCountText: String {
+        let count = sessionController.runningSessionCount
+        if count > 9 {
+            return ">9"
+        }
+
+        return String(format: "%02d", count)
+    }
+
     var body: some View {
         ZStack(alignment: .top) {
             collapsedContent
@@ -234,7 +243,7 @@ struct IslandContentView: View {
                 .frame(width: 24)
                 .offset(x: -100)
 
-            Text("W")
+            Text(collapsedRunningSessionCountText)
                 .foregroundStyle(.white)
                 .offset(x: 100)
         }
