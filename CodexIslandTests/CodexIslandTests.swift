@@ -104,6 +104,57 @@ struct CodexIslandTests {
         #expect(controller.sessions[0].title == "CodexIsland")
     }
 
+    @MainActor
+    @Test func timedOutApprovalStopsPinningToolCardAsPending() async throws {
+        let controller = CodexSessionController(
+            threadNameStore: CodexSessionThreadNameStore(
+                databaseURL: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString),
+                indexURL: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            )
+        )
+
+        let pendingPayload = """
+        {
+          "session_id": "session-1",
+          "transcript_path": "/tmp/transcript.jsonl",
+          "cwd": "/tmp/CodexIsland",
+          "hook_event_name": "PreToolUse",
+          "model": "gpt-5.4",
+          "permission_mode": "default",
+          "turn_id": "turn-1",
+          "tool_name": "Bash",
+          "tool_use_id": "tool-1",
+          "tool_input": {
+            "command": "swift test"
+          }
+        }
+        """.data(using: .utf8)!
+
+        _ = controller.handleIncomingPayload(pendingPayload, client: -1)
+
+        #expect(controller.sessions.first?.toolCalls.first?.requiresApproval == true)
+        #expect(controller.sessions.first?.toolCalls.first?.approvalStatus == "pending")
+
+        let timedOutPayload = """
+        {
+          "session_id": "session-1",
+          "cwd": "/tmp/CodexIsland",
+          "model": "gpt-5.4",
+          "tool_use_id": "tool-1",
+          "tool_name": "Bash",
+          "tool_input": {
+            "command": "swift test"
+          },
+          "codex_event_type": "hook-post-tool-use",
+          "permission_status": "timed_out"
+        }
+        """.data(using: .utf8)!
+
+        _ = controller.handleIncomingPayload(timedOutPayload, client: -1)
+
+        #expect(controller.sessions.first?.toolCalls.isEmpty == true)
+    }
+
 }
 
 private final class SQLiteDatabase {

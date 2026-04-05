@@ -171,6 +171,8 @@ final class CodexSessionController: ObservableObject {
             approvalQueue.append(pendingApprovalKey)
         }
 
+        syncApprovalTracking(for: session)
+
         publishVisibleSessions()
     }
 
@@ -254,7 +256,7 @@ final class CodexSessionController: ObservableObject {
     }
 
     private func publishVisibleSessions() {
-        while let firstKey = approvalQueue.first, sessionIndex[firstKey] == nil {
+        while let firstKey = approvalQueue.first, shouldDropApprovalTracking(forKey: firstKey) {
             approvalQueue.removeFirst()
         }
 
@@ -281,8 +283,37 @@ final class CodexSessionController: ObservableObject {
 
     private func removeResolvedToolCall(withID id: String, approvalKey: String) {
         sessionIndex.removeValue(forKey: id)
+        pendingApprovalClients.removeValue(forKey: approvalKey)
         approvalQueue.removeAll { $0 == approvalKey }
         publishVisibleSessions()
+    }
+
+    private func syncApprovalTracking(for session: CodexRecentSession) {
+        guard let toolUseID = session.toolUseID else {
+            return
+        }
+
+        let approvalKey = "\(session.sessionID)::\(toolUseID)"
+        guard !session.requiresApproval else {
+            return
+        }
+
+        pendingApprovalClients.removeValue(forKey: approvalKey)
+        approvalQueue.removeAll { $0 == approvalKey }
+    }
+
+    private func shouldDropApprovalTracking(forKey key: String) -> Bool {
+        guard let session = sessionIndex[key] else {
+            pendingApprovalClients.removeValue(forKey: key)
+            return true
+        }
+
+        guard session.requiresApproval else {
+            pendingApprovalClients.removeValue(forKey: key)
+            return true
+        }
+
+        return false
     }
 
     private func sessionTitle(for session: CodexRecentSession, threadName: String?) -> String {
