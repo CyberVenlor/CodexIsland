@@ -170,6 +170,8 @@ struct CodexSessionListView: View {
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 4)
                                 .background(Color.secondary.opacity(0.12), in: Capsule())
+                                .lineLimit(1)
+                                .fixedSize(horizontal: true, vertical: false)
 
                             Text(session.state.displayName)
                                 .font(.caption.weight(.semibold))
@@ -177,7 +179,10 @@ struct CodexSessionListView: View {
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 4)
                                 .background(stateColor(for: session.state).opacity(0.15), in: Capsule())
+                                .lineLimit(1)
+                                .fixedSize(horizontal: true, vertical: false)
                         }
+                        .fixedSize(horizontal: true, vertical: false)
                     }
 
                     if !session.toolCalls.isEmpty {
@@ -227,13 +232,6 @@ struct CodexSessionListView: View {
                         }
                     }
 
-                    if let lastUserPrompt = session.lastUserPrompt, !lastUserPrompt.isEmpty {
-                        Text(lastUserPrompt)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(2)
-                    }
-
                     if let lastAssistantMessage = session.lastAssistantMessage, !lastAssistantMessage.isEmpty {
                         Text(lastAssistantMessage)
                             .font(.caption)
@@ -256,6 +254,7 @@ struct CodexSessionListView: View {
                 }
                 .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
                 .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
