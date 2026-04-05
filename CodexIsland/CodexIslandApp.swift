@@ -4,7 +4,11 @@ import SwiftUI
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let sessionController = CodexSessionController()
-    private lazy var overlayController = IslandOverlayController(sessionController: sessionController)
+    let settingsStore = SettingsConfigStore()
+    private lazy var overlayController = IslandOverlayController(
+        sessionController: sessionController,
+        settingsStore: settingsStore
+    )
     private lazy var relayServer = CodexHookRelayServer(sessionController: sessionController)
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -21,7 +25,8 @@ struct CodexIslandApp: App {
 
     var body: some Scene {
         Settings {
-            EmptyView()
+            SettingsPanelView()
+                .environmentObject(appDelegate.settingsStore)
         }
         .commands {
             CommandGroup(replacing: .newItem) { }

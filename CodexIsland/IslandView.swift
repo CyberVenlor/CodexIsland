@@ -76,6 +76,7 @@ struct IslandView: View {
     private var content: some View {
         IslandContentView(
             state: state,
+            controller: controller,
             sessionController: sessionController
         )
     }
@@ -195,7 +196,9 @@ private final class MouseTrackingNSView: NSView {
 
 struct IslandContentView: View {
     let state: IslandPresentationState
+    @ObservedObject var controller: IslandController
     @ObservedObject var sessionController: CodexSessionController
+    @EnvironmentObject private var settingsStore: SettingsConfigStore
 
     private let detailedSize = IslandShellStyle.forState(.collapsed(.detailed)).size
     private let expandedSize = IslandShellStyle.forState(.expanded).size
@@ -261,20 +264,62 @@ struct IslandContentView: View {
 
     private var expandedContent: some View {
         VStack(alignment: .leading, spacing: 0) {
+            expandedHeader
             expandedDetails
         }
-        .padding(.horizontal, 18)
-        .padding(.top, 32)
+        .padding(.horizontal, 16)
+        .padding(.top, 14)
         .padding(.bottom, 18)
         .frame(width: expandedSize.width, height: expandedSize.height, alignment: .top)
         .opacity(isExpanded ? 1 : 0)
         .blur(radius: isExpanded ? 0 : 18)
     }
 
+    private var expandedHeader: some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(controller.activePanel == .settings ? "Settings" : "Codex Sessions")
+                    .font(.headline)
+                    .foregroundStyle(.white)
+
+                if controller.activePanel == .settings {
+                    Text("Panel is still in progress.")
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.55))
+                } else {
+                    Text("\(sessionController.sessions.count) tracked")
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.55))
+                }
+            }
+
+            Spacer()
+
+            Button {
+                controller.toggleSettingsPanel()
+            } label: {
+                Image(systemName: controller.activePanel == .settings ? "xmark.circle.fill" : "gearshape.fill")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.92))
+                    .frame(width: 30, height: 30)
+                    .background(Color.white.opacity(0.10), in: Circle())
+            }
+            .buttonStyle(.plain)
+            .help(controller.activePanel == .settings ? "Close Settings" : "Open Settings")
+        }
+        .padding(.bottom, 12)
+    }
+
     @ViewBuilder
     private var expandedDetails: some View {
-        CodexSessionListView()
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        if controller.activePanel == .settings {
+            SettingsPanelView()
+                .environmentObject(settingsStore)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        } else {
+            CodexSessionListView()
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        }
     }
 }
 
@@ -285,36 +330,33 @@ struct CodexSessionListView: View {
     private let sessionStackAnimation = Animation.spring(response: 0.42, dampingFraction: 0.86)
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                LazyVStack(spacing: 12) {
-                    ForEach(sessionController.sessions) { session in
-                        sessionRow(session)
-                            .transition(.asymmetric(
-                                insertion: .modifier(
-                                    active: SessionInsertTransition(opacity: 0, blurRadius: 18, offsetY: -24, scale: 0.97),
-                                    identity: SessionInsertTransition(opacity: 1, blurRadius: 0, offsetY: 0, scale: 1)
-                                ),
-                                removal: .opacity
-                            ))
-                    }
-                }
-                .padding(.vertical, 6)
-            }
-            .scrollIndicators(.hidden)
-            .background(Color.clear)
-            .overlay {
-                if sessionController.sessions.isEmpty {
-                    ContentUnavailableView(
-                        "No Codex Sessions",
-                        systemImage: "bolt.slash",
-                        description: Text("Only sessions received after this app launch are tracked.")
-                    )
+        ScrollView {
+            LazyVStack(spacing: 12) {
+                ForEach(sessionController.sessions) { session in
+                    sessionRow(session)
+                        .transition(.asymmetric(
+                            insertion: .modifier(
+                                active: SessionInsertTransition(opacity: 0, blurRadius: 18, offsetY: -24, scale: 0.97),
+                                identity: SessionInsertTransition(opacity: 1, blurRadius: 0, offsetY: 0, scale: 1)
+                            ),
+                            removal: .opacity
+                        ))
                 }
             }
-            .navigationTitle("Codex Sessions")
-            .animation(sessionStackAnimation, value: sessionController.sessions.map(\.id))
+            .padding(.vertical, 6)
         }
+        .scrollIndicators(.hidden)
+        .background(Color.clear)
+        .overlay {
+            if sessionController.sessions.isEmpty {
+                ContentUnavailableView(
+                    "No Codex Sessions",
+                    systemImage: "bolt.slash",
+                    description: Text("Only sessions received after this app launch are tracked.")
+                )
+            }
+        }
+        .animation(sessionStackAnimation, value: sessionController.sessions.map(\.id))
     }
 
     private func sessionRow(_ session: CodexSessionGroup) -> some View {

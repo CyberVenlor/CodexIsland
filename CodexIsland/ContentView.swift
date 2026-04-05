@@ -26,6 +26,7 @@ struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
         ContentView(controller: IslandController())
             .environmentObject(CodexSessionController())
+            .environmentObject(SettingsConfigStore())
             .padding(40)
             .background(Color(red: 0.93, green: 0.95, blue: 0.98))
     }

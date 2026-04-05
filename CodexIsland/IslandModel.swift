@@ -22,6 +22,11 @@ enum IslandPresentationState: Equatable {
     case expanded
 }
 
+enum ExpandedIslandPanel: Equatable {
+    case sessions
+    case settings
+}
+
 struct IslandListItem: Identifiable, Hashable {
     let id = UUID()
     let title: String
@@ -38,6 +43,7 @@ final class IslandController: ObservableObject {
 
     @Published var collapsedMode: CollapsedIslandMode = .detailed
     @Published private(set) var isExpanded = false
+    @Published private(set) var activePanel: ExpandedIslandPanel = .sessions
 
     private var pendingCollapse: DispatchWorkItem?
     private var pendingTransition: DispatchWorkItem?
@@ -102,8 +108,17 @@ final class IslandController: ObservableObject {
 
         withAnimation(Self.collapseAnimation) {
             isExpanded = false
+            activePanel = .sessions
         }
         lastTransitionAt = Date()
+    }
+
+    func toggleSettingsPanel() {
+        guard isExpanded else { return }
+
+        withAnimation(Self.expandAnimation) {
+            activePanel = activePanel == .settings ? .sessions : .settings
+        }
     }
 
     private var canTransitionNow: Bool {

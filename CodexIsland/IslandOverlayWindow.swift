@@ -88,12 +88,14 @@ final class TransparentHostingView<Content: View>: NSHostingView<Content> {
 final class IslandOverlayController: NSObject {
     private let islandController = IslandController()
     private let sessionController: CodexSessionController
+    private let settingsStore: SettingsConfigStore
     private var panel: IslandPanel?
     private var cancellables: Set<AnyCancellable> = []
     private var mousePassthroughTimer: Timer?
 
-    init(sessionController: CodexSessionController) {
+    init(sessionController: CodexSessionController, settingsStore: SettingsConfigStore) {
         self.sessionController = sessionController
+        self.settingsStore = settingsStore
         super.init()
     }
 
@@ -136,6 +138,7 @@ final class IslandOverlayController: NSObject {
         let hostingView = TransparentHostingView(
             rootView: ContentView(controller: islandController)
                 .environmentObject(sessionController)
+                .environmentObject(settingsStore)
         )
         hostingView.translatesAutoresizingMaskIntoConstraints = false
         containerView.addSubview(hostingView)
