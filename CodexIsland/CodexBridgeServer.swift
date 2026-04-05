@@ -12,6 +12,7 @@ final class CodexBridgeServer: ObservableObject {
     private let acceptQueue = DispatchQueue(label: "CodexIsland.bridge.accept", qos: .userInitiated)
     private let readQueue = DispatchQueue(label: "CodexIsland.bridge.read", qos: .userInitiated)
     private var listenSocket: Int32 = -1
+    private var pendingApprovalClients: [String: Int32] = [:]
 
     init(
         sessionStore: CodexSessionStore = CodexSessionStore(),
@@ -37,6 +38,14 @@ final class CodexBridgeServer: ObservableObject {
             loadError = error.localizedDescription
             debugLogger.log("failed to load sessions in app: \(error.localizedDescription)")
         }
+    }
+
+    func approve(_ session: CodexRecentSession) {
+        respond(to: session, with: .approveToolUse())
+    }
+
+    func deny(_ session: CodexRecentSession) {
+        respond(to: session, with: .denyToolUse(reason: "Denied from Vibe Island"))
     }
 
     deinit {
@@ -126,33 +135,29 @@ final class CodexBridgeServer: ObservableObject {
     }
 
     private func handleClient(_ client: Int32) {
-        defer { close(client) }
-
         var data = Data()
         var buffer = [UInt8](repeating: 0, count: 4096)
+        let count = read(client, &buffer, buffer.count)
 
-        while true {
-            let count = read(client, &buffer, buffer.count)
-
-            if count > 0 {
-                data.append(contentsOf: buffer.prefix(count))
-                continue
-            }
-
-            if count == 0 {
-                break
-            }
-
+        if count < 0 {
             debugLogger.log("read failed on socket client")
+            close(client)
             return
+        }
+
+        if count > 0 {
+            data.append(contentsOf: buffer.prefix(count))
         }
 
         guard !data.isEmpty else {
             debugLogger.log("received empty payload from socket client")
+            close(client)
             return
         }
 
         debugLogger.log("received \(data.count) bytes from socket client")
+
+        let decodedPayload = decodeIncomingPayload(data)
 
         do {
             try sessionStore.recordPayloadData(data)
@@ -160,8 +165,109 @@ final class CodexBridgeServer: ObservableObject {
             debugLogger.log("failed to record socket payload: \(error.localizedDescription)")
         }
 
+        if let payload = decodedPayload, payload.requiresApproval, let key = approvalKey(for: payload) {
+            pendingApprovalClients[key] = client
+            debugLogger.log("stored pending approval client for \(key)")
+        } else {
+            close(client)
+        }
+
         Task { @MainActor [weak self] in
             self?.loadSessions()
         }
+    }
+
+    private func respond(to session: CodexRecentSession, with response: CodexHookResponse) {
+        guard let key = approvalKey(for: session), let client = pendingApprovalClients.removeValue(forKey: key) else {
+            debugLogger.log("no pending approval client for session \(session.id)")
+            return
+        }
+
+        do {
+            let data = try JSONEncoder().encode(response)
+            try FileHandle(fileDescriptor: client, closeOnDealloc: false).write(contentsOf: data)
+            debugLogger.log("wrote approval response for \(key)")
+        } catch {
+            debugLogger.log("failed to write approval response for \(key): \(error.localizedDescription)")
+        }
+
+        close(client)
+
+        if let toolUseID = session.toolUseID {
+            let status = response.hookSpecificOutput?.permissionDecision?.rawValue ?? "resolved"
+            do {
+                try sessionStore.updateApproval(sessionID: session.id, toolUseID: toolUseID, status: status)
+            } catch {
+                debugLogger.log("failed to persist approval status for \(key): \(error.localizedDescription)")
+            }
+        }
+
+        loadSessions()
+    }
+
+    private func decodeIncomingPayload(_ data: Data) -> IncomingPayload? {
+        if let preTool = try? JSONDecoder().decode(CodexPreToolUseContext.self, from: data) {
+            return IncomingPayload(
+                sessionID: preTool.sessionID,
+                toolUseID: preTool.toolUseID,
+                requiresApproval: true
+            )
+        }
+
+        if let payload = try? JSONDecoder().decode(IncomingBridgePayload.self, from: data) {
+            return IncomingPayload(
+                sessionID: payload.sessionID,
+                toolUseID: payload.toolUseID,
+                requiresApproval: payload.requiresApproval
+            )
+        }
+
+        return nil
+    }
+
+    private func approvalKey(for session: CodexRecentSession) -> String? {
+        guard let toolUseID = session.toolUseID else {
+            return nil
+        }
+
+        return "\(session.id)::\(toolUseID)"
+    }
+
+    private func approvalKey(for payload: IncomingPayload) -> String? {
+        guard let sessionID = payload.sessionID, let toolUseID = payload.toolUseID else {
+            return nil
+        }
+
+        return "\(sessionID)::\(toolUseID)"
+    }
+}
+
+private struct IncomingPayload {
+    let sessionID: String?
+    let toolUseID: String?
+    let requiresApproval: Bool
+}
+
+private struct IncomingBridgePayload: Decodable {
+    let event: String?
+    let sessionID: String?
+    let toolUseID: String?
+    let codexEventType: String?
+    let codexPermissionMode: String?
+
+    var requiresApproval: Bool {
+        let eventName = (event ?? codexEventType ?? "").lowercased()
+        return eventName == "pretooluse"
+            || eventName == "hook-pre-tool-use"
+            || eventName == "hook-pretooluse"
+            || codexPermissionMode != nil
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case event
+        case sessionID = "session_id"
+        case toolUseID = "tool_use_id"
+        case codexEventType = "codex_event_type"
+        case codexPermissionMode = "codex_permission_mode"
     }
 }

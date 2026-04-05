@@ -316,6 +316,20 @@ struct CodexHookResponse: Codable, Equatable {
         )
     }
 
+    static func approveToolUse(reason: String? = nil, systemMessage: String? = nil) -> Self {
+        Self(
+            systemMessage: systemMessage,
+            decision: .approve,
+            reason: reason,
+            hookSpecificOutput: CodexHookSpecificOutput(
+                hookEventName: .preToolUse,
+                additionalContext: nil,
+                permissionDecision: .allow,
+                permissionDecisionReason: reason
+            )
+        )
+    }
+
     static func postToolUseFeedback(
         reason: String,
         additionalContext: String? = nil,

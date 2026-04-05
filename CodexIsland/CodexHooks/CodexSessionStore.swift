@@ -10,6 +10,11 @@ struct CodexRecentSession: Identifiable, Equatable {
     let transcriptPath: String?
     let lastEvent: String?
     let lastAssistantMessage: String?
+    let toolName: String?
+    let toolUseID: String?
+    let toolCommand: String?
+    let requiresApproval: Bool
+    let approvalStatus: String?
 }
 
 enum CodexSessionState: Equatable {
@@ -79,7 +84,12 @@ struct CodexSessionStore {
                     model: $0.model,
                     transcriptPath: $0.transcriptPath,
                     lastEvent: $0.lastEvent,
-                    lastAssistantMessage: $0.lastAssistantMessage
+                    lastAssistantMessage: $0.lastAssistantMessage,
+                    toolName: $0.toolName,
+                    toolUseID: $0.toolUseID,
+                    toolCommand: $0.toolCommand,
+                    requiresApproval: $0.requiresApproval,
+                    approvalStatus: $0.approvalStatus
                 )
             }
 
@@ -116,6 +126,19 @@ struct CodexSessionStore {
 
         let content = String(data: data, encoding: .utf8) ?? "<non-utf8>"
         debugLogger.log("recordPayloadData could not decode payload: \(content)")
+    }
+
+    func updateApproval(sessionID: String, toolUseID: String, status: String) throws {
+        var entries = try loadEntries()
+        guard let index = entries.firstIndex(where: { $0.id == sessionID && $0.toolUseID == toolUseID }) else {
+            debugLogger.log("updateApproval could not find session \(sessionID) tool \(toolUseID)")
+            return
+        }
+
+        entries[index].requiresApproval = false
+        entries[index].approvalStatus = status
+        try saveEntries(entries)
+        debugLogger.log("updated approval status for \(sessionID) tool \(toolUseID) to \(status)")
     }
 
     private func persist(_ update: SessionRecord) throws {
@@ -169,6 +192,28 @@ private struct HookSessionEntry: Codable, Equatable {
     var model: String
     var lastEvent: String?
     var lastAssistantMessage: String?
+    var toolName: String?
+    var toolUseID: String?
+    var toolCommand: String?
+    var requiresApproval: Bool
+    var approvalStatus: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case title
+        case updatedAt
+        case state
+        case transcriptPath
+        case cwd
+        case model
+        case lastEvent
+        case lastAssistantMessage
+        case toolName
+        case toolUseID
+        case toolCommand
+        case requiresApproval
+        case approvalStatus
+    }
 
     init(record: SessionRecord) {
         id = record.id
@@ -180,6 +225,29 @@ private struct HookSessionEntry: Codable, Equatable {
         model = record.model
         lastEvent = record.lastEvent
         lastAssistantMessage = record.lastAssistantMessage
+        toolName = record.toolName
+        toolUseID = record.toolUseID
+        toolCommand = record.toolCommand
+        requiresApproval = record.requiresApproval
+        approvalStatus = record.approvalStatus
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        title = try container.decode(String.self, forKey: .title)
+        updatedAt = try container.decode(Date.self, forKey: .updatedAt)
+        state = try container.decode(String.self, forKey: .state)
+        transcriptPath = try container.decodeIfPresent(String.self, forKey: .transcriptPath)
+        cwd = try container.decodeIfPresent(String.self, forKey: .cwd) ?? transcriptPath ?? "unknown"
+        model = try container.decodeIfPresent(String.self, forKey: .model) ?? "unknown"
+        lastEvent = try container.decodeIfPresent(String.self, forKey: .lastEvent)
+        lastAssistantMessage = try container.decodeIfPresent(String.self, forKey: .lastAssistantMessage)
+        toolName = try container.decodeIfPresent(String.self, forKey: .toolName)
+        toolUseID = try container.decodeIfPresent(String.self, forKey: .toolUseID)
+        toolCommand = try container.decodeIfPresent(String.self, forKey: .toolCommand)
+        requiresApproval = try container.decodeIfPresent(Bool.self, forKey: .requiresApproval) ?? false
+        approvalStatus = try container.decodeIfPresent(String.self, forKey: .approvalStatus)
     }
 
     var sessionState: CodexSessionState {
@@ -204,6 +272,11 @@ private struct HookSessionEntry: Codable, Equatable {
         model = record.model == "unknown" ? model : record.model
         lastEvent = record.lastEvent
         lastAssistantMessage = record.lastAssistantMessage ?? lastAssistantMessage
+        toolName = record.toolName ?? toolName
+        toolUseID = record.toolUseID ?? toolUseID
+        toolCommand = record.toolCommand ?? toolCommand
+        requiresApproval = record.requiresApproval
+        approvalStatus = record.approvalStatus ?? approvalStatus
     }
 }
 
@@ -217,6 +290,11 @@ private struct SessionRecord {
     let model: String
     let lastEvent: String?
     let lastAssistantMessage: String?
+    let toolName: String?
+    let toolUseID: String?
+    let toolCommand: String?
+    let requiresApproval: Bool
+    let approvalStatus: String?
 
     init(invocation: CodexHookInvocation, updatedAt: Date) {
         switch invocation {
@@ -230,6 +308,11 @@ private struct SessionRecord {
             model = context.model
             lastEvent = context.hookEventName.rawValue
             lastAssistantMessage = nil
+            toolName = nil
+            toolUseID = nil
+            toolCommand = nil
+            requiresApproval = false
+            approvalStatus = nil
         case .preToolUse(let context):
             id = context.sessionID
             title = Self.makeTitle(from: context.cwd)
@@ -240,6 +323,11 @@ private struct SessionRecord {
             model = context.model
             lastEvent = context.hookEventName.rawValue
             lastAssistantMessage = nil
+            toolName = context.toolName.displayName
+            toolUseID = context.toolUseID
+            toolCommand = context.toolInput.command
+            requiresApproval = true
+            approvalStatus = "pending"
         case .postToolUse(let context):
             id = context.sessionID
             title = Self.makeTitle(from: context.cwd)
@@ -250,6 +338,11 @@ private struct SessionRecord {
             model = context.model
             lastEvent = context.hookEventName.rawValue
             lastAssistantMessage = nil
+            toolName = context.toolName.displayName
+            toolUseID = context.toolUseID
+            toolCommand = context.toolInput.command
+            requiresApproval = false
+            approvalStatus = nil
         case .stop(let context):
             id = context.sessionID
             title = Self.makeTitle(from: context.cwd)
@@ -260,6 +353,11 @@ private struct SessionRecord {
             model = context.model
             lastEvent = context.hookEventName.rawValue
             lastAssistantMessage = context.lastAssistantMessage
+            toolName = nil
+            toolUseID = nil
+            toolCommand = nil
+            requiresApproval = false
+            approvalStatus = nil
         }
     }
 
@@ -273,6 +371,11 @@ private struct SessionRecord {
         model = bridgePayload.model ?? "unknown"
         lastEvent = bridgePayload.event ?? bridgePayload.codexEventType
         lastAssistantMessage = bridgePayload.lastAssistantMessage ?? bridgePayload.codexLastAssistantMessage
+        toolName = bridgePayload.toolName
+        toolUseID = bridgePayload.toolUseID
+        toolCommand = bridgePayload.toolInput?.command ?? bridgePayload.toolCommand
+        requiresApproval = Self.requiresApproval(from: bridgePayload)
+        approvalStatus = requiresApproval ? "pending" : bridgePayload.permissionStatus
     }
 
     private static func makeTitle(from cwd: String) -> String {
@@ -294,6 +397,20 @@ private struct SessionRecord {
 
         return "running"
     }
+
+    private static func requiresApproval(from payload: CodexBridgePayload) -> Bool {
+        let eventName = (payload.codexEventType ?? payload.event ?? "").lowercased()
+
+        if eventName == "pretooluse" || eventName == "hook-pre-tool-use" || eventName == "hook-pretooluse" {
+            return true
+        }
+
+        if payload.codexPermissionMode != nil {
+            return true
+        }
+
+        return false
+    }
 }
 
 private struct CodexBridgePayload: Decodable {
@@ -306,6 +423,12 @@ private struct CodexBridgePayload: Decodable {
     let stopHookActive: Bool?
     let lastAssistantMessage: String?
     let codexLastAssistantMessage: String?
+    let toolName: String?
+    let toolUseID: String?
+    let toolInput: BridgeToolInput?
+    let toolCommand: String?
+    let codexPermissionMode: String?
+    let permissionStatus: String?
 
     init(
         event: String?,
@@ -316,7 +439,13 @@ private struct CodexBridgePayload: Decodable {
         codexEventType: String?,
         stopHookActive: Bool?,
         lastAssistantMessage: String?,
-        codexLastAssistantMessage: String?
+        codexLastAssistantMessage: String?,
+        toolName: String?,
+        toolUseID: String?,
+        toolInput: BridgeToolInput?,
+        toolCommand: String?,
+        codexPermissionMode: String?,
+        permissionStatus: String?
     ) {
         self.event = event
         self.sessionID = sessionID
@@ -327,6 +456,12 @@ private struct CodexBridgePayload: Decodable {
         self.stopHookActive = stopHookActive
         self.lastAssistantMessage = lastAssistantMessage
         self.codexLastAssistantMessage = codexLastAssistantMessage
+        self.toolName = toolName
+        self.toolUseID = toolUseID
+        self.toolInput = toolInput
+        self.toolCommand = toolCommand
+        self.codexPermissionMode = codexPermissionMode
+        self.permissionStatus = permissionStatus
     }
 
     init(from decoder: Decoder) throws {
@@ -346,6 +481,12 @@ private struct CodexBridgePayload: Decodable {
         stopHookActive = try container.decodeIfPresent(Bool.self, forKey: .stopHookActive)
         lastAssistantMessage = try container.decodeIfPresent(String.self, forKey: .lastAssistantMessage)
         codexLastAssistantMessage = try container.decodeIfPresent(String.self, forKey: .codexLastAssistantMessage)
+        toolName = try container.decodeIfPresent(String.self, forKey: .toolName)
+        toolUseID = try container.decodeIfPresent(String.self, forKey: .toolUseID)
+        toolInput = try container.decodeIfPresent(BridgeToolInput.self, forKey: .toolInput)
+        toolCommand = try container.decodeIfPresent(String.self, forKey: .toolCommand)
+        codexPermissionMode = try container.decodeIfPresent(String.self, forKey: .codexPermissionMode)
+        permissionStatus = try container.decodeIfPresent(String.self, forKey: .permissionStatus)
     }
 
     init?(dictionary: [String: Any]) {
@@ -358,6 +499,12 @@ private struct CodexBridgePayload: Decodable {
         stopHookActive = dictionary["stop_hook_active"] as? Bool
         lastAssistantMessage = dictionary["last_assistant_message"] as? String
         codexLastAssistantMessage = dictionary["codex_last_assistant_message"] as? String
+        toolName = dictionary["tool_name"] as? String
+        toolUseID = dictionary["tool_use_id"] as? String
+        toolInput = BridgeToolInput(dictionary: dictionary["tool_input"] as? [String: Any])
+        toolCommand = dictionary["tool_command"] as? String
+        codexPermissionMode = dictionary["codex_permission_mode"] as? String
+        permissionStatus = dictionary["permission_status"] as? String
 
         if event == nil, sessionID == nil, cwd == nil, transcriptPath == nil, codexEventType == nil {
             return nil
@@ -377,5 +524,38 @@ private struct CodexBridgePayload: Decodable {
         case stopHookActive = "stop_hook_active"
         case lastAssistantMessage = "last_assistant_message"
         case codexLastAssistantMessage = "codex_last_assistant_message"
+        case toolName = "tool_name"
+        case toolUseID = "tool_use_id"
+        case toolInput = "tool_input"
+        case toolCommand = "tool_command"
+        case codexPermissionMode = "codex_permission_mode"
+        case permissionStatus = "permission_status"
+    }
+}
+
+private struct BridgeToolInput: Codable {
+    let command: String?
+
+    init(command: String?) {
+        self.command = command
+    }
+
+    init?(dictionary: [String: Any]?) {
+        guard let dictionary else {
+            return nil
+        }
+
+        command = dictionary["command"] as? String
+    }
+}
+
+private extension CodexToolName {
+    var displayName: String {
+        switch self {
+        case .bash:
+            return "Bash"
+        case .other(let value):
+            return value
+        }
     }
 }

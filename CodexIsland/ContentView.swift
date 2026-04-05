@@ -45,6 +45,48 @@ struct ContentView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
+                    if let toolName = session.toolName ?? session.toolUseID {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("PreToolUse")
+                                .font(.caption.weight(.semibold))
+                            Text("tool: \(toolName)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+
+                            if let toolUseID = session.toolUseID {
+                                Text("toolUseId: \(toolUseID)")
+                                    .font(.caption2.monospaced())
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            if let toolCommand = session.toolCommand {
+                                Text(toolCommand)
+                                    .font(.caption.monospaced())
+                                    .textSelection(.enabled)
+                            }
+
+                            if session.requiresApproval {
+                                HStack {
+                                    Button("Approve") {
+                                        bridgeServer.approve(session)
+                                    }
+                                    .buttonStyle(.borderedProminent)
+
+                                    Button("Deny") {
+                                        bridgeServer.deny(session)
+                                    }
+                                    .buttonStyle(.bordered)
+                                }
+                            } else if let approvalStatus = session.approvalStatus {
+                                Text("approval: \(approvalStatus)")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding(8)
+                        .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+                    }
+
                     if let transcriptPath = session.transcriptPath {
                         Text(transcriptPath)
                             .font(.caption2.monospaced())
