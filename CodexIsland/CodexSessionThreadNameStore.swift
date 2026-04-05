@@ -23,7 +23,7 @@ struct CodexSessionThreadNameStore {
     func threadNamesBySessionID() -> [String: String] {
         var names = loadThreadNamesFromSQLite()
 
-        for (id, name) in loadThreadNamesFromIndex() where names[id] == nil {
+        for (id, name) in loadThreadNamesFromIndex() {
             names[id] = name
         }
 

@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct IslandView: View {
@@ -37,11 +38,17 @@ struct IslandView: View {
             content
         }
         .frame(width: canvasSize.width, height: canvasSize.height, alignment: .top)
-        .contentShape(Rectangle())
-        .onHover { isHovering in
-            controller.handleHoverChange(isHovering)
+        .background(alignment: .top) {
+            hoverTrackingArea
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    private var hoverTrackingArea: some View {
+        HoverTrackingView { isHovering in
+            controller.handleHoverChange(isHovering)
+        }
+            .frame(width: shellStyle.size.width, height: shellStyle.size.height)
     }
 
     private var shell: some View {
@@ -68,6 +75,64 @@ struct IslandView: View {
             state: state,
             sessionController: sessionController
         )
+    }
+}
+
+private struct HoverTrackingView: NSViewRepresentable {
+    let onHoverChanged: (Bool) -> Void
+
+    func makeNSView(context: Context) -> MouseTrackingNSView {
+        let view = MouseTrackingNSView()
+        view.onHoverChanged = onHoverChanged
+        return view
+    }
+
+    func updateNSView(_ nsView: MouseTrackingNSView, context: Context) {
+        nsView.onHoverChanged = onHoverChanged
+        nsView.updateTrackingAreas()
+    }
+}
+
+private final class MouseTrackingNSView: NSView {
+    var onHoverChanged: ((Bool) -> Void)?
+    private var trackingArea: NSTrackingArea?
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = false
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func updateTrackingAreas() {
+        if let trackingArea {
+            removeTrackingArea(trackingArea)
+        }
+
+        let trackingArea = NSTrackingArea(
+            rect: bounds,
+            options: [.activeAlways, .mouseEnteredAndExited, .inVisibleRect],
+            owner: self,
+            userInfo: nil
+        )
+        addTrackingArea(trackingArea)
+        self.trackingArea = trackingArea
+
+        super.updateTrackingAreas()
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        onHoverChanged?(true)
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        onHoverChanged?(false)
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        nil
     }
 }
 
