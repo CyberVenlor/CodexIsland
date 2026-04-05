@@ -16,6 +16,7 @@ enum CodexSessionProjection {
     static func merge(existing: CodexRecentSession, update: CodexRecentSession) -> CodexRecentSession {
         CodexRecentSession(
             id: existing.id,
+            sessionID: existing.sessionID,
             title: update.title,
             updatedAt: update.updatedAt,
             state: update.state,
@@ -36,6 +37,7 @@ enum CodexSessionProjection {
     static func approvalUpdated(_ session: CodexRecentSession, status: String, now: Date = Date()) -> CodexRecentSession {
         CodexRecentSession(
             id: session.id,
+            sessionID: session.sessionID,
             title: session.title,
             updatedAt: now,
             state: session.state,
@@ -58,6 +60,7 @@ enum CodexSessionProjection {
         case .sessionStart(let context):
             return CodexRecentSession(
                 id: context.sessionID,
+                sessionID: context.sessionID,
                 title: title(from: context.cwd),
                 updatedAt: now,
                 state: .running,
@@ -75,7 +78,8 @@ enum CodexSessionProjection {
             )
         case .preToolUse(let context):
             return CodexRecentSession(
-                id: context.sessionID,
+                id: toolEventID(sessionID: context.sessionID, toolUseID: context.toolUseID),
+                sessionID: context.sessionID,
                 title: title(from: context.cwd),
                 updatedAt: now,
                 state: .running,
@@ -93,7 +97,8 @@ enum CodexSessionProjection {
             )
         case .postToolUse(let context):
             return CodexRecentSession(
-                id: context.sessionID,
+                id: toolEventID(sessionID: context.sessionID, toolUseID: context.toolUseID),
+                sessionID: context.sessionID,
                 title: title(from: context.cwd),
                 updatedAt: now,
                 state: .running,
@@ -112,6 +117,7 @@ enum CodexSessionProjection {
         case .userPromptSubmit(let context):
             return CodexRecentSession(
                 id: context.sessionID,
+                sessionID: context.sessionID,
                 title: title(from: context.cwd),
                 updatedAt: now,
                 state: .running,
@@ -130,6 +136,7 @@ enum CodexSessionProjection {
         case .stop(let context):
             return CodexRecentSession(
                 id: context.sessionID,
+                sessionID: context.sessionID,
                 title: title(from: context.cwd),
                 updatedAt: now,
                 state: context.stopHookActive ? .running : .completed,
@@ -151,7 +158,12 @@ enum CodexSessionProjection {
     private static func session(from payload: IncomingBridgePayload, now: Date) -> CodexRecentSession {
         let eventName = payload.event ?? payload.codexEventType
         return CodexRecentSession(
-            id: payload.sessionID ?? UUID().uuidString,
+            id: eventID(
+                sessionID: payload.sessionID ?? UUID().uuidString,
+                toolUseID: payload.toolUseID,
+                eventName: eventName
+            ),
+            sessionID: payload.sessionID ?? UUID().uuidString,
             title: title(from: payload.cwd ?? payload.transcriptPath ?? "unknown"),
             updatedAt: now,
             state: state(for: payload),
@@ -180,6 +192,26 @@ enum CodexSessionProjection {
     private static func title(from path: String) -> String {
         let component = URL(fileURLWithPath: path).lastPathComponent
         return component.isEmpty ? path : component
+    }
+
+    private static func toolEventID(sessionID: String, toolUseID: String) -> String {
+        "\(sessionID)::\(toolUseID)"
+    }
+
+    private static func eventID(sessionID: String, toolUseID: String?, eventName: String?) -> String {
+        guard let toolUseID, isToolEvent(eventName) else {
+            return sessionID
+        }
+
+        return toolEventID(sessionID: sessionID, toolUseID: toolUseID)
+    }
+
+    private static func isToolEvent(_ eventName: String?) -> Bool {
+        guard let eventName else {
+            return false
+        }
+
+        return eventName.lowercased().contains("tool")
     }
 }
 

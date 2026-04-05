@@ -45,46 +45,51 @@ struct ContentView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                    if let toolName = session.toolName ?? session.toolUseID {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("PreToolUse")
-                                .font(.caption.weight(.semibold))
-                            Text("tool: \(toolName)")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                    if !session.toolCalls.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            ForEach(session.toolCalls) { toolCall in
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text(toolCall.lastEvent ?? "ToolUse")
+                                        .font(.caption.weight(.semibold))
 
-                            if let toolUseID = session.toolUseID {
-                                Text("toolUseId: \(toolUseID)")
-                                    .font(.caption2.monospaced())
-                                    .foregroundStyle(.secondary)
-                            }
+                                    Text("tool: \(toolCall.toolName ?? toolCall.toolUseID ?? "-")")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
 
-                            if let toolCommand = session.toolCommand {
-                                Text(toolCommand)
-                                    .font(.caption.monospaced())
-                                    .textSelection(.enabled)
-                            }
-
-                            if session.requiresApproval {
-                                HStack {
-                                    Button("Approve") {
-                                        sessionController.approve(session)
+                                    if let toolUseID = toolCall.toolUseID {
+                                        Text("toolUseId: \(toolUseID)")
+                                            .font(.caption2.monospaced())
+                                            .foregroundStyle(.secondary)
                                     }
-                                    .buttonStyle(.borderedProminent)
 
-                                    Button("Deny") {
-                                        sessionController.deny(session)
+                                    if let toolCommand = toolCall.toolCommand {
+                                        Text(toolCommand)
+                                            .font(.caption.monospaced())
+                                            .textSelection(.enabled)
                                     }
-                                    .buttonStyle(.bordered)
+
+                                    if toolCall.requiresApproval {
+                                        HStack {
+                                            Button("Approve") {
+                                                sessionController.approve(toolCall)
+                                            }
+                                            .buttonStyle(.borderedProminent)
+
+                                            Button("Deny") {
+                                                sessionController.deny(toolCall)
+                                            }
+                                            .buttonStyle(.bordered)
+                                        }
+                                    } else if let approvalStatus = toolCall.approvalStatus {
+                                        Text("approval: \(approvalStatus)")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
                                 }
-                            } else if let approvalStatus = session.approvalStatus {
-                                Text("approval: \(approvalStatus)")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                .padding(8)
+                                .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
                             }
                         }
-                        .padding(8)
-                        .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
                     }
 
                     if let lastUserPrompt = session.lastUserPrompt, !lastUserPrompt.isEmpty {

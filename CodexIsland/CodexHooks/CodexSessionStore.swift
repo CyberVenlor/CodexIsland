@@ -2,6 +2,7 @@ import Foundation
 
 struct CodexRecentSession: Identifiable, Equatable {
     let id: String
+    let sessionID: String
     let title: String
     let updatedAt: Date
     let state: CodexSessionState
@@ -16,6 +17,32 @@ struct CodexRecentSession: Identifiable, Equatable {
     let toolCommand: String?
     let requiresApproval: Bool
     let approvalStatus: String?
+}
+
+struct CodexToolCall: Identifiable, Equatable {
+    let id: String
+    let sessionID: String
+    let updatedAt: Date
+    let toolName: String?
+    let toolUseID: String?
+    let toolCommand: String?
+    let requiresApproval: Bool
+    let approvalStatus: String?
+    let lastEvent: String?
+}
+
+struct CodexSessionGroup: Identifiable, Equatable {
+    let id: String
+    let title: String
+    let updatedAt: Date
+    let state: CodexSessionState
+    let cwd: String
+    let model: String
+    let transcriptPath: String?
+    let lastEvent: String?
+    let lastUserPrompt: String?
+    let lastAssistantMessage: String?
+    let toolCalls: [CodexToolCall]
 }
 
 enum CodexSessionState: Equatable {
@@ -78,6 +105,7 @@ struct CodexSessionStore: CodexSessionPersisting {
             .map {
                 CodexRecentSession(
                     id: $0.id,
+                    sessionID: $0.sessionID,
                     title: $0.title,
                     updatedAt: $0.updatedAt,
                     state: $0.sessionState,
@@ -131,7 +159,7 @@ struct CodexSessionStore: CodexSessionPersisting {
 
     func updateApproval(sessionID: String, toolUseID: String, status: String) throws {
         var entries = try loadEntries()
-        guard let index = entries.firstIndex(where: { $0.id == sessionID && $0.toolUseID == toolUseID }) else {
+        guard let index = entries.firstIndex(where: { $0.sessionID == sessionID && $0.toolUseID == toolUseID }) else {
             debugLogger.log("updateApproval could not find session \(sessionID) tool \(toolUseID)")
             return
         }
@@ -185,6 +213,7 @@ struct CodexSessionStore: CodexSessionPersisting {
 
 private struct HookSessionEntry: Codable, Equatable {
     let id: String
+    let sessionID: String
     var title: String
     var updatedAt: Date
     var state: String
@@ -202,6 +231,7 @@ private struct HookSessionEntry: Codable, Equatable {
 
     private enum CodingKeys: String, CodingKey {
         case id
+        case sessionID
         case title
         case updatedAt
         case state
@@ -220,6 +250,7 @@ private struct HookSessionEntry: Codable, Equatable {
 
     init(record: SessionRecord) {
         id = record.id
+        sessionID = record.sessionID
         title = record.title
         updatedAt = record.updatedAt
         state = record.state
@@ -239,6 +270,7 @@ private struct HookSessionEntry: Codable, Equatable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(String.self, forKey: .id)
+        sessionID = try container.decodeIfPresent(String.self, forKey: .sessionID) ?? id
         title = try container.decode(String.self, forKey: .title)
         updatedAt = try container.decode(Date.self, forKey: .updatedAt)
         state = try container.decode(String.self, forKey: .state)
@@ -288,6 +320,7 @@ private struct HookSessionEntry: Codable, Equatable {
 
 private struct SessionRecord {
     let id: String
+    let sessionID: String
     let title: String
     let updatedAt: Date
     let state: String
@@ -306,6 +339,7 @@ private struct SessionRecord {
     init(invocation: CodexHookInvocation, updatedAt: Date) {
         switch invocation {
         case .sessionStart(let context):
+            sessionID = context.sessionID
             id = context.sessionID
             title = Self.makeTitle(from: context.cwd)
             self.updatedAt = updatedAt
@@ -322,7 +356,8 @@ private struct SessionRecord {
             requiresApproval = false
             approvalStatus = nil
         case .preToolUse(let context):
-            id = context.sessionID
+            sessionID = context.sessionID
+            id = Self.makeToolEventID(sessionID: context.sessionID, toolUseID: context.toolUseID)
             title = Self.makeTitle(from: context.cwd)
             self.updatedAt = updatedAt
             state = "running"
@@ -338,7 +373,8 @@ private struct SessionRecord {
             requiresApproval = true
             approvalStatus = "pending"
         case .postToolUse(let context):
-            id = context.sessionID
+            sessionID = context.sessionID
+            id = Self.makeToolEventID(sessionID: context.sessionID, toolUseID: context.toolUseID)
             title = Self.makeTitle(from: context.cwd)
             self.updatedAt = updatedAt
             state = "running"
@@ -354,6 +390,7 @@ private struct SessionRecord {
             requiresApproval = false
             approvalStatus = nil
         case .userPromptSubmit(let context):
+            sessionID = context.sessionID
             id = context.sessionID
             title = Self.makeTitle(from: context.cwd)
             self.updatedAt = updatedAt
@@ -370,6 +407,7 @@ private struct SessionRecord {
             requiresApproval = false
             approvalStatus = nil
         case .stop(let context):
+            sessionID = context.sessionID
             id = context.sessionID
             title = Self.makeTitle(from: context.cwd)
             self.updatedAt = updatedAt
@@ -389,7 +427,13 @@ private struct SessionRecord {
     }
 
     init(bridgePayload: CodexBridgePayload, updatedAt: Date) {
-        id = bridgePayload.sessionID ?? UUID().uuidString
+        let resolvedSessionID = bridgePayload.sessionID ?? UUID().uuidString
+        sessionID = resolvedSessionID
+        id = Self.makeEventID(
+            sessionID: resolvedSessionID,
+            toolUseID: bridgePayload.toolUseID,
+            eventName: bridgePayload.codexEventType ?? bridgePayload.event
+        )
         title = Self.makeTitle(from: bridgePayload.cwd ?? bridgePayload.transcriptPath ?? "unknown")
         self.updatedAt = updatedAt
         state = Self.state(from: bridgePayload)
@@ -409,6 +453,26 @@ private struct SessionRecord {
     private static func makeTitle(from cwd: String) -> String {
         let component = URL(fileURLWithPath: cwd).lastPathComponent
         return component.isEmpty ? cwd : component
+    }
+
+    private static func makeToolEventID(sessionID: String, toolUseID: String) -> String {
+        "\(sessionID)::\(toolUseID)"
+    }
+
+    private static func makeEventID(sessionID: String, toolUseID: String?, eventName: String?) -> String {
+        guard let toolUseID, isToolEvent(eventName) else {
+            return sessionID
+        }
+
+        return makeToolEventID(sessionID: sessionID, toolUseID: toolUseID)
+    }
+
+    private static func isToolEvent(_ eventName: String?) -> Bool {
+        guard let eventName else {
+            return false
+        }
+
+        return eventName.lowercased().contains("tool")
     }
 
     private static func state(from payload: CodexBridgePayload) -> String {

@@ -4,7 +4,7 @@ import Foundation
 
 @MainActor
 final class CodexSessionController: ObservableObject {
-    @Published private(set) var sessions: [CodexRecentSession] = []
+    @Published private(set) var sessions: [CodexSessionGroup] = []
 
     private let persistence: CodexSessionPersisting
     private let debugLogger: CodexHookDebugLogger
@@ -66,6 +66,20 @@ final class CodexSessionController: ObservableObject {
         }
     }
 
+    func approve(_ toolCall: CodexToolCall) {
+        resolve(toolCall, approvalStatus: "approved", relayResponse: .approve)
+    }
+
+    func deny(_ toolCall: CodexToolCall) {
+        resolve(
+            toolCall,
+            approvalStatus: "denied",
+            relayResponse: .deny(
+                CodexHookResponse.denyToolUse(reason: "Denied from CodexIsland")
+            )
+        )
+    }
+
     private func resolve(
         _ session: CodexRecentSession,
         relayResponse: CodexHookRelayResponse,
@@ -91,7 +105,7 @@ final class CodexSessionController: ObservableObject {
 
         if let toolUseID = session.toolUseID {
             do {
-                try persistence.updateApproval(sessionID: session.id, toolUseID: toolUseID, status: approvalStatus)
+                try persistence.updateApproval(sessionID: session.sessionID, toolUseID: toolUseID, status: approvalStatus)
             } catch {
                 debugLogger.log("failed to persist approval status for \(key): \(error.localizedDescription)")
             }
@@ -99,6 +113,40 @@ final class CodexSessionController: ObservableObject {
             if let existing = sessionIndex[session.id] {
                 upsert(session: CodexSessionProjection.approvalUpdated(existing, status: approvalStatus))
             }
+        }
+    }
+
+    private func resolve(
+        _ toolCall: CodexToolCall,
+        approvalStatus: String,
+        relayResponse: CodexHookRelayResponse
+    ) {
+        guard
+            let toolUseID = toolCall.toolUseID,
+            let client = pendingApprovalClients.removeValue(forKey: toolCall.id)
+        else {
+            debugLogger.log("no pending approval client for tool call \(toolCall.id)")
+            return
+        }
+
+        do {
+            let data = try JSONEncoder().encode(relayResponse)
+            try FileHandle(fileDescriptor: client, closeOnDealloc: false).write(contentsOf: data)
+            debugLogger.log("wrote relay response for \(toolCall.id) decision=\(relayResponse.decision.rawValue)")
+        } catch {
+            debugLogger.log("failed to write relay response for \(toolCall.id): \(error.localizedDescription)")
+        }
+
+        close(client)
+
+        do {
+            try persistence.updateApproval(sessionID: toolCall.sessionID, toolUseID: toolUseID, status: approvalStatus)
+        } catch {
+            debugLogger.log("failed to persist approval status for \(toolCall.id): \(error.localizedDescription)")
+        }
+
+        if let existing = sessionIndex[toolCall.id] {
+            upsert(session: CodexSessionProjection.approvalUpdated(existing, status: approvalStatus))
         }
     }
 
@@ -113,10 +161,7 @@ final class CodexSessionController: ObservableObject {
             sessionIndex[session.id] = session
         }
 
-        sessions = sessionIndex.values
-            .sorted { $0.updatedAt > $1.updatedAt }
-            .prefix(12)
-            .map { $0 }
+        sessions = groupedSessions(from: sessionIndex.values)
     }
 
     private func approvalKey(for session: CodexRecentSession) -> String? {
@@ -124,7 +169,54 @@ final class CodexSessionController: ObservableObject {
             return nil
         }
 
-        return "\(session.id)::\(toolUseID)"
+        return "\(session.sessionID)::\(toolUseID)"
+    }
+
+    private func groupedSessions(from rawSessions: Dictionary<String, CodexRecentSession>.Values) -> [CodexSessionGroup] {
+        let grouped = Dictionary(grouping: rawSessions, by: \.sessionID)
+
+        return grouped.compactMap { sessionID, items in
+            guard let base = items
+                .sorted(by: { $0.updatedAt > $1.updatedAt })
+                .first(where: { $0.id == sessionID }) ?? items.max(by: { $0.updatedAt < $1.updatedAt })
+            else {
+                return nil
+            }
+
+            let toolCalls = items
+                .filter { $0.toolUseID != nil }
+                .sorted { $0.updatedAt > $1.updatedAt }
+                .map {
+                    CodexToolCall(
+                        id: $0.id,
+                        sessionID: $0.sessionID,
+                        updatedAt: $0.updatedAt,
+                        toolName: $0.toolName,
+                        toolUseID: $0.toolUseID,
+                        toolCommand: $0.toolCommand,
+                        requiresApproval: $0.requiresApproval,
+                        approvalStatus: $0.approvalStatus,
+                        lastEvent: $0.lastEvent
+                    )
+                }
+
+            return CodexSessionGroup(
+                id: sessionID,
+                title: base.title,
+                updatedAt: max(base.updatedAt, toolCalls.map(\.updatedAt).max() ?? base.updatedAt),
+                state: base.state,
+                cwd: base.cwd,
+                model: base.model,
+                transcriptPath: base.transcriptPath,
+                lastEvent: base.lastEvent,
+                lastUserPrompt: base.lastUserPrompt,
+                lastAssistantMessage: base.lastAssistantMessage,
+                toolCalls: toolCalls
+            )
+        }
+        .sorted { $0.updatedAt > $1.updatedAt }
+        .prefix(12)
+        .map { $0 }
     }
 }
 
