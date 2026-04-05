@@ -278,14 +278,26 @@ struct IslandContentView: View {
         .blur(radius: isExpanded ? 0 : 18)
     }
 
+    private var isSettingsPanelActive: Bool {
+        controller.activePanel == .settings
+    }
+
+    private var settingsIconOpacity: Double {
+        isSettingsPanelActive ? 0 : 1
+    }
+
+    private var closeIconOpacity: Double {
+        isSettingsPanelActive ? 1 : 0
+    }
+
     private var expandedHeader: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(controller.activePanel == .settings ? "Settings" : "Codex Sessions")
+                Text(isSettingsPanelActive ? "Settings" : "Codex Sessions")
                     .font(.headline)
                     .foregroundStyle(.white)
 
-                if controller.activePanel == .settings {
+                if isSettingsPanelActive {
                     Text("Panel is still in progress.")
                         .font(.caption)
                         .foregroundStyle(.white.opacity(0.55))
@@ -301,14 +313,16 @@ struct IslandContentView: View {
             Button {
                 controller.toggleSettingsPanel()
             } label: {
-                Image(systemName: controller.activePanel == .settings ? "xmark.circle.fill" : "gearshape.fill")
+                Image(systemName: isSettingsPanelActive ? "xmark.circle.fill" : "gearshape.fill")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.92))
+                    .opacity(isSettingsPanelActive ? closeIconOpacity : settingsIconOpacity)
+                    .animation(.linear(duration: 0.16), value: isSettingsPanelActive)
                     .frame(width: 30, height: 30)
                     .background(Color.white.opacity(0.10), in: Circle())
             }
             .buttonStyle(.plain)
-            .help(controller.activePanel == .settings ? "Close Settings" : "Open Settings")
+            .help(isSettingsPanelActive ? "Close Settings" : "Open Settings")
         }
         .padding(.bottom, 12)
     }
