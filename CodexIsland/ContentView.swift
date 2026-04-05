@@ -9,15 +9,7 @@ import SwiftUI
 
 struct ContentView: View {
     @State private var selectedTab: SettingsTab? = .general
-
-    @State private var launchAtLogin = true
-    @State private var openOnStartup = true
-    @State private var displayName = "Modulusly"
-    @State private var preferredLanguage = "English"
-    @State private var hooksEnabled = true
-    @State private var enablePreHook = false
-    @State private var enablePostHook = true
-    @State private var hookURL = "https://hooks.modulusly.dev"
+    @EnvironmentObject private var settingsStore: SettingsConfigStore
 
     var body: some View {
         NavigationSplitView {
@@ -48,8 +40,8 @@ struct ContentView: View {
     private var generalView: some View {
         Form {
             Section("Startup") {
-                Toggle("Launch at login", isOn: $launchAtLogin)
-                Toggle("Open main window on startup", isOn: $openOnStartup)
+                Toggle("Launch at login", isOn: $settingsStore.config.launchAtLogin)
+                Toggle("Open main window on startup", isOn: $settingsStore.config.openOnStartup)
             }
 
             Section("System") {
@@ -63,11 +55,11 @@ struct ContentView: View {
     private var personalizedView: some View {
         Form {
             Section("Profile") {
-                TextField("Display name", text: $displayName)
+                TextField("Display name", text: $settingsStore.config.displayName)
             }
 
             Section("Preferences") {
-                Picker("Language", selection: $preferredLanguage) {
+                Picker("Language", selection: $settingsStore.config.preferredLanguage) {
                     Text("English").tag("English")
                     Text("Chinese").tag("Chinese")
                 }
@@ -79,13 +71,13 @@ struct ContentView: View {
     private var hooksView: some View {
         Form {
             Section("Hooks") {
-                Toggle("Enable hooks", isOn: $hooksEnabled)
-                Toggle("Enable pre-hook", isOn: $enablePreHook)
-                Toggle("Enable post-hook", isOn: $enablePostHook)
+                Toggle("Enable hooks", isOn: $settingsStore.config.hooksEnabled)
+                Toggle("Enable pre-hook", isOn: $settingsStore.config.enablePreHook)
+                Toggle("Enable post-hook", isOn: $settingsStore.config.enablePostHook)
             }
 
             Section("Endpoint") {
-                TextField("Hook URL", text: $hookURL)
+                TextField("Hook URL", text: $settingsStore.config.hookURL)
                     .textFieldStyle(.roundedBorder)
             }
         }
@@ -95,14 +87,14 @@ struct ContentView: View {
     private var aboutView: some View {
         Form {
             Section("Application") {
-                LabeledContent("Name", value: "Modulusly")
+                LabeledContent("Name", value: "CodexIsland")
                 LabeledContent("Version", value: "1.0.0")
                 LabeledContent("Build", value: "26A01")
             }
 
             Section("Support") {
-                LabeledContent("Website", value: "modulusly.dev")
-                LabeledContent("Email", value: "support@modulusly.dev")
+                LabeledContent("Website", value: "rhine-lab.xyz")
+                LabeledContent("Email", value: "catbeluga2437@gmail.com")
             }
         }
         .formStyle(.grouped)
@@ -146,4 +138,5 @@ private enum SettingsTab: String, CaseIterable, Identifiable {
 
 #Preview {
     ContentView()
+        .environmentObject(SettingsConfigStore())
 }

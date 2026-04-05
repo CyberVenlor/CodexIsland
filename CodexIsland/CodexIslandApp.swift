@@ -9,9 +9,12 @@ import SwiftUI
 
 @main
 struct CodexIslandApp: App {
+    @StateObject private var settingsStore = SettingsConfigStore()
+
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environmentObject(settingsStore)
         }
     }
 }
