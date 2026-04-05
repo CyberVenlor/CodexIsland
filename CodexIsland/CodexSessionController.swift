@@ -226,9 +226,31 @@ final class CodexSessionController: ObservableObject {
                 toolCalls: toolCalls
             )
         }
-        .sorted { $0.updatedAt > $1.updatedAt }
+        .sorted {
+            let lhsPriority = sessionSortPriority(for: $0.state)
+            let rhsPriority = sessionSortPriority(for: $1.state)
+
+            if lhsPriority != rhsPriority {
+                return lhsPriority < rhsPriority
+            }
+
+            return $0.updatedAt > $1.updatedAt
+        }
         .prefix(12)
         .map { $0 }
+    }
+
+    private func sessionSortPriority(for state: CodexSessionState) -> Int {
+        switch state {
+        case .running:
+            return 0
+        case .idle:
+            return 1
+        case .completed:
+            return 2
+        case .unknown:
+            return 3
+        }
     }
 
     private func publishVisibleSessions() {
