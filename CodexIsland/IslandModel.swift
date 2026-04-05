@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 enum CollapsedIslandMode: String, CaseIterable, Identifiable {
@@ -30,7 +31,7 @@ struct IslandListItem: Identifiable, Hashable {
 
 @MainActor
 final class IslandController: ObservableObject {
-    static let expandAnimation = Animation.spring(response: 0.58, dampingFraction: 0.78)
+    static let expandAnimation = Animation.spring(response: 0.66, dampingFraction: 0.60, blendDuration: 0.10)
     static let collapseAnimation = Animation.spring(response: 0.64, dampingFraction: 0.70)
     private static let hoverExitDelay: TimeInterval = 0.16
     private static let hoverToggleCooldown: TimeInterval = 0.24
@@ -88,6 +89,7 @@ final class IslandController: ObservableObject {
         withAnimation(Self.expandAnimation) {
             isExpanded = true
         }
+        Self.performExpandHaptic()
         lastTransitionAt = Date()
     }
 
@@ -133,5 +135,9 @@ final class IslandController: ObservableObject {
         pendingTransition = retryWorkItem
         let delay = max(0, Self.hoverToggleCooldown - Date().timeIntervalSince(lastTransitionAt))
         DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: retryWorkItem)
+    }
+
+    private static func performExpandHaptic() {
+        NSHapticFeedbackManager.defaultPerformer.perform(.generic, performanceTime: .now)
     }
 }
