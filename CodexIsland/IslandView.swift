@@ -37,19 +37,11 @@ struct IslandView: View {
             content
         }
         .frame(width: canvasSize.width, height: canvasSize.height, alignment: .top)
-        .overlay(alignment: .top) {
-            hoverHitArea
+        .contentShape(Rectangle())
+        .onHover { isHovering in
+            controller.handleHoverChange(isHovering)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-    }
-
-    private var hoverHitArea: some View {
-        Color.clear
-            .frame(width: shellStyle.size.width, height: shellStyle.size.height)
-            .contentShape(Rectangle())
-            .onHover { isHovering in
-                controller.handleHoverChange(isHovering)
-            }
     }
 
     private var shell: some View {
@@ -150,205 +142,138 @@ struct IslandContentView: View {
 
     @ViewBuilder
     private var expandedDetails: some View {
-        CodexHooksExpandedPanel(sessionController: sessionController)
+        CodexSessionListView()
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 }
 
-struct CodexHooksExpandedPanel: View {
-    @ObservedObject var sessionController: CodexSessionController
+struct CodexSessionListView: View {
+    @EnvironmentObject private var sessionController: CodexSessionController
+    private let sessionCornerRadius: CGFloat = 16
+    private let toolCallCornerRadius: CGFloat = 12
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            header
+        NavigationStack {
+            List(sessionController.sessions) { session in
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text(session.title)
+                            .font(.headline)
+                            .lineLimit(2)
 
-            if sessionController.sessions.isEmpty {
-                emptyState
-            } else {
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 10) {
-                        ForEach(sessionController.sessions) { session in
-                            SessionCard(session: session, sessionController: sessionController)
+                        Spacer()
+
+                        HStack(spacing: 8) {
+                            Text(session.projectName)
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(.secondary)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Color.secondary.opacity(0.12), in: Capsule())
+
+                            Text(session.state.displayName)
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(stateColor(for: session.state))
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(stateColor(for: session.state).opacity(0.15), in: Capsule())
                         }
                     }
-                    .padding(.bottom, 2)
-                }
-                .scrollIndicators(.hidden)
-            }
-        }
-    }
 
-    private var header: some View {
-        HStack(alignment: .firstTextBaseline) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Codex Hooks")
-                    .font(.headline.weight(.semibold))
-                    .foregroundStyle(.white)
+                    if !session.toolCalls.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            ForEach(session.toolCalls) { toolCall in
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text("tool: \(toolCall.toolName ?? toolCall.toolUseID ?? "-")")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
 
-                Text("\(sessionController.sessions.count) active session\(sessionController.sessions.count == 1 ? "" : "s")")
-                    .font(.caption)
-                    .foregroundStyle(.white.opacity(0.56))
-            }
+                                    if let toolUseID = toolCall.toolUseID {
+                                        Text("toolUseId: \(toolUseID)")
+                                            .font(.caption2.monospaced())
+                                            .foregroundStyle(.secondary)
+                                    }
 
-            Spacer()
+                                    if let toolCommand = toolCall.toolCommand {
+                                        Text(toolCommand)
+                                            .font(.caption.monospaced())
+                                            .textSelection(.enabled)
+                                    }
 
-            Image(systemName: "bolt.horizontal.circle.fill")
-                .font(.title3)
-                .foregroundStyle(.white.opacity(0.78))
-        }
-    }
+                                    if toolCall.requiresApproval {
+                                        HStack {
+                                            Button("Approve") {
+                                                sessionController.approve(toolCall)
+                                            }
+                                            .buttonStyle(.borderedProminent)
 
-    private var emptyState: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("No Codex sessions")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.white)
+                                            Button("Deny") {
+                                                sessionController.deny(toolCall)
+                                            }
+                                            .buttonStyle(.bordered)
+                                        }
+                                    } else if let approvalStatus = toolCall.approvalStatus {
+                                        Text("approval: \(approvalStatus)")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                                .padding(8)
+                                .background(
+                                    Color.secondary.opacity(0.08),
+                                    in: RoundedRectangle(cornerRadius: toolCallCornerRadius, style: .continuous)
+                                )
+                            }
+                        }
+                    }
 
-            Text("Sessions appear here after the helper relay receives hook events.")
-                .font(.caption)
-                .foregroundStyle(.white.opacity(0.62))
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-    }
-}
+                    if let lastUserPrompt = session.lastUserPrompt, !lastUserPrompt.isEmpty {
+                        Text(lastUserPrompt)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                    }
 
-private struct SessionCard: View {
-    let session: CodexSessionGroup
-    @ObservedObject var sessionController: CodexSessionController
+                    if let lastAssistantMessage = session.lastAssistantMessage, !lastAssistantMessage.isEmpty {
+                        Text(lastAssistantMessage)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                    }
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .top, spacing: 8) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(session.title)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.white)
-                        .lineLimit(2)
-
-                    Text(session.projectName)
+                    Text(session.updatedAt.formatted(date: .abbreviated, time: .shortened))
                         .font(.caption)
-                        .foregroundStyle(.white.opacity(0.56))
-                        .lineLimit(1)
+                        .foregroundStyle(.secondary)
                 }
-
-                Spacer(minLength: 8)
-
-                SessionStateBadge(state: session.state)
+                .padding(14)
+                .background(
+                    Color.white.opacity(0.08),
+                    in: RoundedRectangle(cornerRadius: sessionCornerRadius, style: .continuous)
+                )
+                .overlay {
+                    RoundedRectangle(cornerRadius: sessionCornerRadius, style: .continuous)
+                        .stroke(Color.white.opacity(0.05), lineWidth: 1)
+                }
+                .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
+                .listRowBackground(Color.clear)
             }
-
-            if let prompt = session.lastUserPrompt, !prompt.isEmpty {
-                SessionExcerpt(label: "Prompt", text: prompt)
-            }
-
-            if let message = session.lastAssistantMessage, !message.isEmpty {
-                SessionExcerpt(label: "Reply", text: message)
-            }
-
-            ForEach(session.toolCalls) { toolCall in
-                ToolCallCard(toolCall: toolCall, sessionController: sessionController)
-            }
-
-            Text(session.updatedAt.formatted(date: .omitted, time: .shortened))
-                .font(.caption2.monospacedDigit())
-                .foregroundStyle(.white.opacity(0.42))
-        }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-    }
-}
-
-private struct ToolCallCard: View {
-    let toolCall: CodexToolCall
-    @ObservedObject var sessionController: CodexSessionController
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(toolCall.toolName ?? toolCall.toolUseID ?? "Tool")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.white)
-
-                Spacer()
-
-                if let approvalStatus = toolCall.approvalStatus {
-                    Text(approvalStatus)
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(toolCall.requiresApproval ? .black : .white.opacity(0.82))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(
-                            toolCall.requiresApproval ? Color.yellow : Color.white.opacity(0.12),
-                            in: Capsule()
-                        )
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(Color.clear)
+            .overlay {
+                if sessionController.sessions.isEmpty {
+                    ContentUnavailableView(
+                        "No Codex Sessions",
+                        systemImage: "bolt.slash",
+                        description: Text("Only sessions received after this app launch are tracked.")
+                    )
                 }
             }
-
-            if let command = toolCall.toolCommand {
-                Text(command)
-                    .font(.caption2.monospaced())
-                    .foregroundStyle(.white.opacity(0.72))
-                    .textSelection(.enabled)
-                    .lineLimit(3)
-            }
-
-            if toolCall.requiresApproval {
-                HStack(spacing: 8) {
-                    Button("Approve") {
-                        sessionController.approve(toolCall)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-                    .tint(.green)
-
-                    Button("Deny") {
-                        sessionController.deny(toolCall)
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                    .tint(.white.opacity(0.8))
-                }
-            }
-        }
-        .padding(10)
-        .background(.black.opacity(0.22), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-    }
-}
-
-private struct SessionExcerpt: View {
-    let label: String
-    let text: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(label)
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(.white.opacity(0.46))
-
-            Text(text)
-                .font(.caption)
-                .foregroundStyle(.white.opacity(0.76))
-                .lineLimit(2)
+            .navigationTitle("Codex Sessions")
         }
     }
-}
 
-private struct SessionStateBadge: View {
-    let state: CodexSessionState
-
-    var body: some View {
-        Text(state.displayName)
-            .font(.caption2.weight(.semibold))
-            .foregroundStyle(color)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(color.opacity(0.16), in: Capsule())
-    }
-
-    private var color: Color {
+    private func stateColor(for state: CodexSessionState) -> Color {
         switch state {
         case .running:
             return .green

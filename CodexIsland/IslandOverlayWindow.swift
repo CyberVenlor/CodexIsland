@@ -26,8 +26,8 @@ enum IslandOverlayLayout {
 }
 
 final class IslandPanel: NSPanel {
-    override var canBecomeKey: Bool { false }
-    override var canBecomeMain: Bool { false }
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { true }
 }
 
 final class TransparentContainerView: NSView {
