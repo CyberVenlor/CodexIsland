@@ -268,34 +268,7 @@ final class CodexSessionController: ObservableObject {
             return threadName
         }
 
-        if let lastUserPrompt = sanitizedTitle(session.lastUserPrompt) {
-            return lastUserPrompt
-        }
-
         return session.projectName
-    }
-
-    private func sanitizedTitle(_ title: String?) -> String? {
-        guard let title else {
-            return nil
-        }
-
-        let singleLine = title
-            .split(whereSeparator: \.isNewline)
-            .first?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-
-        guard let singleLine, !singleLine.isEmpty else {
-            return nil
-        }
-
-        let maxLength = 72
-        guard singleLine.count > maxLength else {
-            return singleLine
-        }
-
-        let endIndex = singleLine.index(singleLine.startIndex, offsetBy: maxLength)
-        return "\(singleLine[..<endIndex]).trimmingCharacters(in: .whitespacesAndNewlines)…"
     }
 }
 
