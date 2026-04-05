@@ -23,6 +23,15 @@ enum IslandOverlayLayout {
 
         return CGRect(origin: origin, size: windowSize)
     }
+
+    static func interactiveRect(for shellSize: CGSize, in bounds: CGRect) -> CGRect {
+        CGRect(
+            x: bounds.midX - (shellSize.width / 2),
+            y: bounds.maxY - topPadding - shellSize.height,
+            width: shellSize.width,
+            height: shellSize.height
+        )
+    }
 }
 
 final class IslandPanel: NSPanel {
@@ -31,6 +40,8 @@ final class IslandPanel: NSPanel {
 }
 
 final class TransparentContainerView: NSView {
+    var interactiveRectProvider: (() -> CGRect)?
+
     override var isOpaque: Bool { false }
 
     override init(frame frameRect: NSRect) {
@@ -45,6 +56,14 @@ final class TransparentContainerView: NSView {
         wantsLayer = true
         layer?.isOpaque = false
         layer?.backgroundColor = NSColor.clear.cgColor
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        guard interactiveRectProvider?().contains(point) ?? true else {
+            return nil
+        }
+
+        return super.hitTest(point)
     }
 }
 
@@ -70,6 +89,7 @@ final class IslandOverlayController: NSObject {
     private let sessionController: CodexSessionController
     private var panel: IslandPanel?
     private var cancellables: Set<AnyCancellable> = []
+    private var mousePassthroughTimer: Timer?
 
     init(sessionController: CodexSessionController) {
         self.sessionController = sessionController
@@ -98,11 +118,20 @@ final class IslandOverlayController: NSObject {
         self.panel = panel
         bindWindowUpdates()
         updateWindowFrame(animated: false)
+        startMousePassthroughMonitor()
         panel.orderFrontRegardless()
     }
 
     private func makeContentView() -> NSView {
         let containerView = TransparentContainerView(frame: .zero)
+        containerView.interactiveRectProvider = { [weak self, weak containerView] in
+            guard let self, let containerView else {
+                return .zero
+            }
+
+            let shellSize = IslandShellStyle.forState(self.islandController.presentationState).size
+            return IslandOverlayLayout.interactiveRect(for: shellSize, in: containerView.bounds)
+        }
         let hostingView = TransparentHostingView(
             rootView: ContentView(controller: islandController)
                 .environmentObject(sessionController)
@@ -167,5 +196,33 @@ final class IslandOverlayController: NSObject {
         } else {
             panel.setFrame(targetFrame, display: true)
         }
+
+        updateMousePassthrough()
+    }
+
+    private func startMousePassthroughMonitor() {
+        mousePassthroughTimer?.invalidate()
+        mousePassthroughTimer = Timer.scheduledTimer(withTimeInterval: 0.08, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                self?.updateMousePassthrough()
+            }
+        }
+        RunLoop.main.add(mousePassthroughTimer!, forMode: .common)
+        updateMousePassthrough()
+    }
+
+    private func updateMousePassthrough() {
+        guard let panel else { return }
+        guard let contentBounds = panel.contentView?.bounds else { return }
+
+        let mouseLocation = NSEvent.mouseLocation
+        let localPoint = panel.convertPoint(fromScreen: mouseLocation)
+        let shellSize = IslandShellStyle.forState(islandController.presentationState).size
+        let interactiveRect = IslandOverlayLayout.interactiveRect(for: shellSize, in: contentBounds)
+        panel.ignoresMouseEvents = !interactiveRect.contains(localPoint)
+    }
+
+    deinit {
+        mousePassthroughTimer?.invalidate()
     }
 }

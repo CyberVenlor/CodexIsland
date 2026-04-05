@@ -269,113 +269,26 @@ struct CodexSessionListView: View {
     @EnvironmentObject private var sessionController: CodexSessionController
     private let sessionCornerRadius: CGFloat = 16
     private let toolCallCornerRadius: CGFloat = 12
+    private let sessionStackAnimation = Animation.spring(response: 0.42, dampingFraction: 0.86)
 
     var body: some View {
         NavigationStack {
-            List(sessionController.sessions) { session in
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Text(session.title)
-                            .font(.headline)
-                            .lineLimit(2)
-
-                        Spacer()
-
-                        HStack(spacing: 8) {
-                            Text(session.projectName)
-                                .font(.caption.weight(.medium))
-                                .foregroundStyle(.secondary)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(Color.secondary.opacity(0.12), in: Capsule())
-                                .lineLimit(1)
-                                .fixedSize(horizontal: true, vertical: false)
-
-                            Text(session.state.displayName)
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(stateColor(for: session.state))
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(stateColor(for: session.state).opacity(0.15), in: Capsule())
-                                .lineLimit(1)
-                                .fixedSize(horizontal: true, vertical: false)
-                        }
-                        .fixedSize(horizontal: true, vertical: false)
+            ScrollView {
+                LazyVStack(spacing: 12) {
+                    ForEach(sessionController.sessions) { session in
+                        sessionRow(session)
+                            .transition(.asymmetric(
+                                insertion: .modifier(
+                                    active: SessionInsertTransition(opacity: 0, blurRadius: 18, offsetY: -24, scale: 0.97),
+                                    identity: SessionInsertTransition(opacity: 1, blurRadius: 0, offsetY: 0, scale: 1)
+                                ),
+                                removal: .opacity
+                            ))
                     }
-
-                    if !session.toolCalls.isEmpty {
-                        VStack(alignment: .leading, spacing: 8) {
-                            ForEach(session.toolCalls) { toolCall in
-                                VStack(alignment: .leading, spacing: 6) {
-                                    Text("tool: \(toolCall.toolName ?? toolCall.toolUseID ?? "-")")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-
-                                    if let toolUseID = toolCall.toolUseID {
-                                        Text("toolUseId: \(toolUseID)")
-                                            .font(.caption2.monospaced())
-                                            .foregroundStyle(.secondary)
-                                    }
-
-                                    if let toolCommand = toolCall.toolCommand {
-                                        Text(toolCommand)
-                                            .font(.caption.monospaced())
-                                            .textSelection(.enabled)
-                                    }
-
-                                    if toolCall.requiresApproval {
-                                        HStack {
-                                            Button("Approve") {
-                                                sessionController.approve(toolCall)
-                                            }
-                                            .buttonStyle(.borderedProminent)
-
-                                            Button("Deny") {
-                                                sessionController.deny(toolCall)
-                                            }
-                                            .buttonStyle(.bordered)
-                                        }
-                                    } else if let approvalStatus = toolCall.approvalStatus {
-                                        Text("approval: \(approvalStatus)")
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                    }
-                                }
-                                .padding(8)
-                                .background(
-                                    Color.secondary.opacity(0.08),
-                                    in: RoundedRectangle(cornerRadius: toolCallCornerRadius, style: .continuous)
-                                )
-                            }
-                        }
-                    }
-
-                    if let lastAssistantMessage = session.lastAssistantMessage, !lastAssistantMessage.isEmpty {
-                        Text(lastAssistantMessage)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(2)
-                    }
-
-                    Text(session.updatedAt.formatted(date: .abbreviated, time: .shortened))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
                 }
-                .padding(14)
-                .background(
-                    Color.white.opacity(0.08),
-                    in: RoundedRectangle(cornerRadius: sessionCornerRadius, style: .continuous)
-                )
-                .overlay {
-                    RoundedRectangle(cornerRadius: sessionCornerRadius, style: .continuous)
-                        .stroke(Color.white.opacity(0.05), lineWidth: 1)
-                }
-                .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
+                .padding(.vertical, 6)
             }
-            .listStyle(.plain)
-            .scrollContentBackground(.hidden)
+            .scrollIndicators(.hidden)
             .background(Color.clear)
             .overlay {
                 if sessionController.sessions.isEmpty {
@@ -387,6 +300,107 @@ struct CodexSessionListView: View {
                 }
             }
             .navigationTitle("Codex Sessions")
+            .animation(sessionStackAnimation, value: sessionController.sessions.map(\.id))
+        }
+    }
+
+    private func sessionRow(_ session: CodexSessionGroup) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(session.title)
+                    .font(.headline)
+                    .lineLimit(2)
+
+                Spacer()
+
+                HStack(spacing: 8) {
+                    Text(session.projectName)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.secondary.opacity(0.12), in: Capsule())
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
+
+                    Text(session.state.displayName)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(stateColor(for: session.state))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(stateColor(for: session.state).opacity(0.15), in: Capsule())
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
+                }
+                .fixedSize(horizontal: true, vertical: false)
+            }
+
+            if !session.toolCalls.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(session.toolCalls) { toolCall in
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("tool: \(toolCall.toolName ?? toolCall.toolUseID ?? "-")")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+
+                            if let toolUseID = toolCall.toolUseID {
+                                Text("toolUseId: \(toolUseID)")
+                                    .font(.caption2.monospaced())
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            if let toolCommand = toolCall.toolCommand {
+                                Text(toolCommand)
+                                    .font(.caption.monospaced())
+                                    .textSelection(.enabled)
+                            }
+
+                            if toolCall.requiresApproval {
+                                HStack {
+                                    Button("Approve") {
+                                        sessionController.approve(toolCall)
+                                    }
+                                    .buttonStyle(.borderedProminent)
+
+                                    Button("Deny") {
+                                        sessionController.deny(toolCall)
+                                    }
+                                    .buttonStyle(.bordered)
+                                }
+                            } else if let approvalStatus = toolCall.approvalStatus {
+                                Text("approval: \(approvalStatus)")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding(8)
+                        .background(
+                            Color.secondary.opacity(0.08),
+                            in: RoundedRectangle(cornerRadius: toolCallCornerRadius, style: .continuous)
+                        )
+                    }
+                }
+            }
+
+            if let lastAssistantMessage = session.lastAssistantMessage, !lastAssistantMessage.isEmpty {
+                Text(lastAssistantMessage)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+
+            Text(session.updatedAt.formatted(date: .abbreviated, time: .shortened))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(14)
+        .background(
+            Color.white.opacity(0.08),
+            in: RoundedRectangle(cornerRadius: sessionCornerRadius, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: sessionCornerRadius, style: .continuous)
+                .stroke(Color.white.opacity(0.05), lineWidth: 1)
         }
     }
 
@@ -401,6 +415,21 @@ struct CodexSessionListView: View {
         case .unknown:
             return .gray
         }
+    }
+}
+
+private struct SessionInsertTransition: ViewModifier {
+    let opacity: Double
+    let blurRadius: CGFloat
+    let offsetY: CGFloat
+    let scale: CGFloat
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(opacity)
+            .blur(radius: blurRadius)
+            .scaleEffect(scale, anchor: .top)
+            .offset(y: offsetY)
     }
 }
 
