@@ -11,6 +11,7 @@ final class CodexSessionController: ObservableObject {
     private let debugLogger: CodexHookDebugLogger
     private let launchedAt: Date
     private var pendingApprovalClients: [String: Int32] = [:]
+    private var approvalQueue: [String] = []
     private var sessionIndex: [String: CodexRecentSession] = [:]
 
     init(
@@ -26,8 +27,10 @@ final class CodexSessionController: ObservableObject {
     }
 
     func handleIncomingPayload(_ data: Data, client: Int32) -> CodexHookRelayServer.PayloadDisposition {
+        let pendingApproval = PendingApproval.decode(from: data)
+
         if let session = CodexSessionProjection.session(from: data) {
-            upsert(session: session)
+            upsert(session: session, pendingApprovalKey: pendingApproval?.key)
         } else {
             debugLogger.log("failed to project incoming payload into session")
         }
@@ -38,11 +41,15 @@ final class CodexSessionController: ObservableObject {
             debugLogger.log("failed to record incoming payload: \(error.localizedDescription)")
         }
 
-        guard let pendingApproval = PendingApproval.decode(from: data) else {
+        guard let pendingApproval else {
             return .closeClient
         }
 
         pendingApprovalClients[pendingApproval.key] = client
+        if !approvalQueue.contains(pendingApproval.key) {
+            approvalQueue.append(pendingApproval.key)
+            publishVisibleSessions()
+        }
         debugLogger.log("registered pending approval for \(pendingApproval.key)")
         return .holdClient
     }
@@ -112,11 +119,9 @@ final class CodexSessionController: ObservableObject {
             } catch {
                 debugLogger.log("failed to persist approval status for \(key): \(error.localizedDescription)")
             }
-
-            if let existing = sessionIndex[session.id] {
-                upsert(session: CodexSessionProjection.approvalUpdated(existing, status: approvalStatus))
-            }
         }
+
+        removeResolvedToolCall(withID: session.id, approvalKey: key)
     }
 
     private func resolve(
@@ -148,12 +153,10 @@ final class CodexSessionController: ObservableObject {
             debugLogger.log("failed to persist approval status for \(toolCall.id): \(error.localizedDescription)")
         }
 
-        if let existing = sessionIndex[toolCall.id] {
-            upsert(session: CodexSessionProjection.approvalUpdated(existing, status: approvalStatus))
-        }
+        removeResolvedToolCall(withID: toolCall.id, approvalKey: toolCall.id)
     }
 
-    private func upsert(session: CodexRecentSession) {
+    private func upsert(session: CodexRecentSession, pendingApprovalKey: String? = nil) {
         guard session.updatedAt >= launchedAt else {
             return
         }
@@ -164,7 +167,11 @@ final class CodexSessionController: ObservableObject {
             sessionIndex[session.id] = session
         }
 
-        sessions = groupedSessions(from: sessionIndex.values)
+        if let pendingApprovalKey, !approvalQueue.contains(pendingApprovalKey) {
+            approvalQueue.append(pendingApprovalKey)
+        }
+
+        publishVisibleSessions()
     }
 
     private func approvalKey(for session: CodexRecentSession) -> String? {
@@ -222,6 +229,38 @@ final class CodexSessionController: ObservableObject {
         .sorted { $0.updatedAt > $1.updatedAt }
         .prefix(12)
         .map { $0 }
+    }
+
+    private func publishVisibleSessions() {
+        while let firstKey = approvalQueue.first, sessionIndex[firstKey] == nil {
+            approvalQueue.removeFirst()
+        }
+
+        let visibleToolID = approvalQueue.first
+
+        sessions = groupedSessions(from: sessionIndex.values)
+            .map { group in
+                CodexSessionGroup(
+                    id: group.id,
+                    title: group.title,
+                    projectName: group.projectName,
+                    updatedAt: group.updatedAt,
+                    state: group.state,
+                    cwd: group.cwd,
+                    model: group.model,
+                    transcriptPath: group.transcriptPath,
+                    lastEvent: group.lastEvent,
+                    lastUserPrompt: group.lastUserPrompt,
+                    lastAssistantMessage: group.lastAssistantMessage,
+                    toolCalls: group.toolCalls.filter { $0.id == visibleToolID }
+                )
+            }
+    }
+
+    private func removeResolvedToolCall(withID id: String, approvalKey: String) {
+        sessionIndex.removeValue(forKey: id)
+        approvalQueue.removeAll { $0 == approvalKey }
+        publishVisibleSessions()
     }
 
     private func sessionTitle(for session: CodexRecentSession, threadName: String?) -> String {
