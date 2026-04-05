@@ -17,15 +17,25 @@ struct ContentView: View {
                     HStack {
                         Text(session.title)
                             .font(.headline)
+                            .lineLimit(2)
 
                         Spacer()
 
-                        Text(session.state.displayName)
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(stateColor(for: session.state))
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(stateColor(for: session.state).opacity(0.15), in: Capsule())
+                        HStack(spacing: 8) {
+                            Text(session.projectName)
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(.secondary)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Color.secondary.opacity(0.12), in: Capsule())
+
+                            Text(session.state.displayName)
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(stateColor(for: session.state))
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(stateColor(for: session.state).opacity(0.15), in: Capsule())
+                        }
                     }
 
                     Text(session.id)

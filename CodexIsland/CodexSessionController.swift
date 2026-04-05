@@ -7,6 +7,7 @@ final class CodexSessionController: ObservableObject {
     @Published private(set) var sessions: [CodexSessionGroup] = []
 
     private let persistence: CodexSessionPersisting
+    private let threadNameStore: CodexSessionThreadNameStore
     private let debugLogger: CodexHookDebugLogger
     private let launchedAt: Date
     private var pendingApprovalClients: [String: Int32] = [:]
@@ -14,10 +15,12 @@ final class CodexSessionController: ObservableObject {
 
     init(
         persistence: CodexSessionPersisting = NoOpCodexSessionPersistence(),
+        threadNameStore: CodexSessionThreadNameStore = CodexSessionThreadNameStore(),
         debugLogger: CodexHookDebugLogger = .disabled,
         launchedAt: Date = Date()
     ) {
         self.persistence = persistence
+        self.threadNameStore = threadNameStore
         self.debugLogger = debugLogger
         self.launchedAt = launchedAt
     }
@@ -174,6 +177,7 @@ final class CodexSessionController: ObservableObject {
 
     private func groupedSessions(from rawSessions: Dictionary<String, CodexRecentSession>.Values) -> [CodexSessionGroup] {
         let grouped = Dictionary(grouping: rawSessions, by: \.sessionID)
+        let threadNames = threadNameStore.threadNamesBySessionID()
 
         return grouped.compactMap { sessionID, items in
             guard let base = items
@@ -202,7 +206,8 @@ final class CodexSessionController: ObservableObject {
 
             return CodexSessionGroup(
                 id: sessionID,
-                title: base.title,
+                title: sessionTitle(for: base, threadName: threadNames[sessionID]),
+                projectName: base.projectName,
                 updatedAt: max(base.updatedAt, toolCalls.map(\.updatedAt).max() ?? base.updatedAt),
                 state: base.state,
                 cwd: base.cwd,
@@ -217,6 +222,41 @@ final class CodexSessionController: ObservableObject {
         .sorted { $0.updatedAt > $1.updatedAt }
         .prefix(12)
         .map { $0 }
+    }
+
+    private func sessionTitle(for session: CodexRecentSession, threadName: String?) -> String {
+        if let threadName, !threadName.isEmpty {
+            return threadName
+        }
+
+        if let lastUserPrompt = sanitizedTitle(session.lastUserPrompt) {
+            return lastUserPrompt
+        }
+
+        return session.projectName
+    }
+
+    private func sanitizedTitle(_ title: String?) -> String? {
+        guard let title else {
+            return nil
+        }
+
+        let singleLine = title
+            .split(whereSeparator: \.isNewline)
+            .first?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard let singleLine, !singleLine.isEmpty else {
+            return nil
+        }
+
+        let maxLength = 72
+        guard singleLine.count > maxLength else {
+            return singleLine
+        }
+
+        let endIndex = singleLine.index(singleLine.startIndex, offsetBy: maxLength)
+        return "\(singleLine[..<endIndex]).trimmingCharacters(in: .whitespacesAndNewlines)…"
     }
 }
 

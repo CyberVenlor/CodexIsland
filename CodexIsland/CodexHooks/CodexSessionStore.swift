@@ -3,7 +3,7 @@ import Foundation
 struct CodexRecentSession: Identifiable, Equatable {
     let id: String
     let sessionID: String
-    let title: String
+    let projectName: String
     let updatedAt: Date
     let state: CodexSessionState
     let cwd: String
@@ -34,6 +34,7 @@ struct CodexToolCall: Identifiable, Equatable {
 struct CodexSessionGroup: Identifiable, Equatable {
     let id: String
     let title: String
+    let projectName: String
     let updatedAt: Date
     let state: CodexSessionState
     let cwd: String
@@ -106,7 +107,7 @@ struct CodexSessionStore: CodexSessionPersisting {
                 CodexRecentSession(
                     id: $0.id,
                     sessionID: $0.sessionID,
-                    title: $0.title,
+                    projectName: $0.title,
                     updatedAt: $0.updatedAt,
                     state: $0.sessionState,
                     cwd: $0.cwd,

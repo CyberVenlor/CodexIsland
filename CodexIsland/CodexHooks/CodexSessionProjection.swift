@@ -17,7 +17,7 @@ enum CodexSessionProjection {
         CodexRecentSession(
             id: existing.id,
             sessionID: existing.sessionID,
-            title: update.title,
+            projectName: update.projectName,
             updatedAt: update.updatedAt,
             state: update.state,
             cwd: update.cwd,
@@ -38,7 +38,7 @@ enum CodexSessionProjection {
         CodexRecentSession(
             id: session.id,
             sessionID: session.sessionID,
-            title: session.title,
+            projectName: session.projectName,
             updatedAt: now,
             state: session.state,
             cwd: session.cwd,
@@ -61,7 +61,7 @@ enum CodexSessionProjection {
             return CodexRecentSession(
                 id: context.sessionID,
                 sessionID: context.sessionID,
-                title: title(from: context.cwd),
+                projectName: title(from: context.cwd),
                 updatedAt: now,
                 state: .running,
                 cwd: context.cwd,
@@ -80,7 +80,7 @@ enum CodexSessionProjection {
             return CodexRecentSession(
                 id: toolEventID(sessionID: context.sessionID, toolUseID: context.toolUseID),
                 sessionID: context.sessionID,
-                title: title(from: context.cwd),
+                projectName: title(from: context.cwd),
                 updatedAt: now,
                 state: .running,
                 cwd: context.cwd,
@@ -99,7 +99,7 @@ enum CodexSessionProjection {
             return CodexRecentSession(
                 id: toolEventID(sessionID: context.sessionID, toolUseID: context.toolUseID),
                 sessionID: context.sessionID,
-                title: title(from: context.cwd),
+                projectName: title(from: context.cwd),
                 updatedAt: now,
                 state: .running,
                 cwd: context.cwd,
@@ -118,7 +118,7 @@ enum CodexSessionProjection {
             return CodexRecentSession(
                 id: context.sessionID,
                 sessionID: context.sessionID,
-                title: title(from: context.cwd),
+                projectName: title(from: context.cwd),
                 updatedAt: now,
                 state: .running,
                 cwd: context.cwd,
@@ -137,7 +137,7 @@ enum CodexSessionProjection {
             return CodexRecentSession(
                 id: context.sessionID,
                 sessionID: context.sessionID,
-                title: title(from: context.cwd),
+                projectName: title(from: context.cwd),
                 updatedAt: now,
                 state: context.stopHookActive ? .running : .completed,
                 cwd: context.cwd,
@@ -164,7 +164,7 @@ enum CodexSessionProjection {
                 eventName: eventName
             ),
             sessionID: payload.sessionID ?? UUID().uuidString,
-            title: title(from: payload.cwd ?? payload.transcriptPath ?? "unknown"),
+            projectName: title(from: payload.cwd ?? payload.transcriptPath ?? "unknown"),
             updatedAt: now,
             state: state(for: payload),
             cwd: payload.cwd ?? payload.transcriptPath ?? "unknown",

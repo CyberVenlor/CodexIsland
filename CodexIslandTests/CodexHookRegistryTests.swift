@@ -181,9 +181,9 @@ struct CodexHookRegistryTests {
         let sessions = try CodexSessionStore(storeURL: storeURL).recentSessions(limit: 2)
 
         #expect(sessions.count == 2)
-        #expect(sessions[0].title == "Idle Session")
+        #expect(sessions[0].projectName == "Idle Session")
         #expect(sessions[0].state == .completed)
-        #expect(sessions[1].title == "Active Session")
+        #expect(sessions[1].projectName == "Active Session")
         #expect(sessions[1].state == .running)
     }
 
