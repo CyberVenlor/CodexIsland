@@ -297,11 +297,7 @@ struct IslandContentView: View {
                     .font(.headline)
                     .foregroundStyle(.white)
 
-                if isSettingsPanelActive {
-                    Text("Panel is still in progress.")
-                        .font(.caption)
-                        .foregroundStyle(.white.opacity(0.55))
-                } else {
+                if !isSettingsPanelActive {
                     Text("\(sessionController.sessions.count) tracked")
                         .font(.caption)
                         .foregroundStyle(.white.opacity(0.55))

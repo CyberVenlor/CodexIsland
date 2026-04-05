@@ -5,49 +5,101 @@ struct SettingsPanelView: View {
     @State private var selectedTab: SettingsTab = .general
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            header
-            tabPicker
-            ScrollView {
-                activeTabContent
-                    .frame(maxWidth: .infinity, alignment: .topLeading)
-            }
-            .scrollIndicators(.hidden)
+        HStack(spacing: 14) {
+            sidebar
+            detailPane
         }
-        .padding(16)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
-    private var header: some View {
-        HStack(alignment: .top, spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Settings")
-                    .font(.title3.weight(.semibold))
-                Text("In progress module merged from the `settings` branch.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+    private var sidebar: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Settings")
+                .font(.headline.weight(.semibold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 6)
+                .padding(.top, 4)
+
+            VStack(spacing: 4) {
+                ForEach(SettingsTab.allCases) { tab in
+                    sidebarRow(for: tab)
+                }
             }
 
-            Spacer()
+            Spacer(minLength: 0)
+        }
+        .frame(width: 156, alignment: .topLeading)
+        .frame(maxHeight: .infinity, alignment: .topLeading)
+    }
 
-            Text("In Progress")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.orange)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(Color.orange.opacity(0.14), in: Capsule())
+    private func sidebarRow(for tab: SettingsTab) -> some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.16)) {
+                selectedTab = tab
+            }
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: tab.icon)
+                    .font(.system(size: 12, weight: .semibold))
+                    .frame(width: 16)
+
+                Text(tab.title)
+                    .font(.system(size: 12, weight: .medium))
+
+                Spacer(minLength: 0)
+            }
+            .foregroundStyle(selectedTab == tab ? tab.selectedForegroundColor : tab.foregroundColor)
+            .frame(maxWidth: .infinity, minHeight: 30, alignment: .leading)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .background(backgroundStyle(for: tab), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity)
+    }
+
+    private func backgroundStyle(for tab: SettingsTab) -> some ShapeStyle {
+        if selectedTab == tab {
+            return AnyShapeStyle(tab.selectedBackgroundColor)
+        } else {
+            return AnyShapeStyle(tab.backgroundColor)
         }
     }
 
-    private var tabPicker: some View {
-        Picker("Settings Section", selection: $selectedTab) {
-            ForEach(SettingsTab.allCases) { tab in
-                Label(tab.title, systemImage: tab.icon)
-                    .tag(tab)
+    private var detailPane: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                detailHeader
+                activeTabContent
+            }
+            .padding(.top, 16)
+            .padding(.leading, 2)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+        }
+        .scrollIndicators(.hidden)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private var detailHeader: some View {
+        HStack(alignment: .center, spacing: 12) {
+            Image(systemName: selectedTab.icon)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.92))
+                .frame(width: 34, height: 34)
+                .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(selectedTab.title)
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(.white)
+
+                Text(selectedTab.subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.52))
             }
         }
-        .pickerStyle(.segmented)
-        .labelsHidden()
+        .padding(.horizontal, 4)
     }
 
     @ViewBuilder
@@ -72,8 +124,8 @@ struct SettingsPanelView: View {
             }
 
             settingsCard("System") {
-                LabeledContent("Status", value: "Ready")
-                LabeledContent("Version", value: "1.0.0")
+                settingsValueRow("Status", value: "Ready")
+                settingsValueRow("Version", value: "1.0.0")
             }
         }
     }
@@ -90,6 +142,7 @@ struct SettingsPanelView: View {
                     Text("English").tag("English")
                     Text("Chinese").tag("Chinese")
                 }
+                .pickerStyle(.menu)
             }
         }
     }
@@ -112,14 +165,14 @@ struct SettingsPanelView: View {
     private var aboutView: some View {
         formSection {
             settingsCard("Application") {
-                LabeledContent("Name", value: "CodexIsland")
-                LabeledContent("Version", value: "1.0.0")
-                LabeledContent("Build", value: "26A01")
+                settingsValueRow("Name", value: "CodexIsland")
+                settingsValueRow("Version", value: "1.0.0")
+                settingsValueRow("Build", value: "26A01")
             }
 
             settingsCard("Support") {
-                LabeledContent("Website", value: "rhine-lab.xyz")
-                LabeledContent("Email", value: "catbeluga2437@gmail.com")
+                settingsValueRow("Website", value: "rhine-lab.xyz")
+                settingsValueRow("Email", value: "catbeluga2437@gmail.com")
             }
         }
     }
@@ -131,18 +184,35 @@ struct SettingsPanelView: View {
     }
 
     private func settingsCard<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 14) {
             Text(title)
                 .font(.headline)
+                .foregroundStyle(.white)
 
-            content()
+            VStack(alignment: .leading, spacing: 12) {
+                content()
+            }
         }
-        .padding(14)
-        .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .stroke(Color.white.opacity(0.06), lineWidth: 1)
         }
+    }
+
+    private func settingsValueRow(_ title: String, value: String) -> some View {
+        HStack {
+            Text(title)
+                .foregroundStyle(.white.opacity(0.72))
+
+            Spacer(minLength: 12)
+
+            Text(value)
+                .foregroundStyle(.white)
+        }
+        .font(.subheadline)
     }
 }
 
@@ -159,11 +229,24 @@ private enum SettingsTab: String, CaseIterable, Identifiable {
         case .general:
             "General"
         case .personalized:
-            "Personalized"
+            "Personal"
         case .hooks:
             "Hooks"
         case .about:
             "About"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .general:
+            "Startup and system behavior"
+        case .personalized:
+            "Profile and language preferences"
+        case .hooks:
+            "Hook toggles and endpoint settings"
+        case .about:
+            "Build information and support"
         }
     }
 
@@ -177,6 +260,54 @@ private enum SettingsTab: String, CaseIterable, Identifiable {
             "link"
         case .about:
             "info.circle"
+        }
+    }
+
+    var backgroundColor: Color {
+        switch self {
+        case .general:
+            Color.blue.opacity(0.16)
+        case .personalized:
+            Color.green.opacity(0.16)
+        case .hooks:
+            Color.orange.opacity(0.18)
+        case .about:
+            Color.gray.opacity(0.18)
+        }
+    }
+
+    var selectedBackgroundColor: Color {
+        switch self {
+        case .general:
+            Color.blue.opacity(0.88)
+        case .personalized:
+            Color.green.opacity(0.86)
+        case .hooks:
+            Color.orange.opacity(0.9)
+        case .about:
+            Color.white.opacity(0.9)
+        }
+    }
+
+    var foregroundColor: Color {
+        switch self {
+        case .general:
+            Color.blue.opacity(0.95)
+        case .personalized:
+            Color.green.opacity(0.95)
+        case .hooks:
+            Color.orange.opacity(0.95)
+        case .about:
+            Color.white.opacity(0.88)
+        }
+    }
+
+    var selectedForegroundColor: Color {
+        switch self {
+        case .about:
+            Color.black.opacity(0.88)
+        default:
+            Color.white
         }
     }
 }
