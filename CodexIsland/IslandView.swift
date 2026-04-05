@@ -96,6 +96,8 @@ private struct HoverTrackingView: NSViewRepresentable {
 private final class MouseTrackingNSView: NSView {
     var onHoverChanged: ((Bool) -> Void)?
     private var trackingArea: NSTrackingArea?
+    private var isHovering = false
+    private var hoverMonitorTimer: Timer?
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -113,7 +115,7 @@ private final class MouseTrackingNSView: NSView {
 
         let trackingArea = NSTrackingArea(
             rect: bounds,
-            options: [.activeAlways, .mouseEnteredAndExited, .inVisibleRect],
+            options: [.activeAlways, .mouseEnteredAndExited, .mouseMoved, .inVisibleRect],
             owner: self,
             userInfo: nil
         )
@@ -124,15 +126,66 @@ private final class MouseTrackingNSView: NSView {
     }
 
     override func mouseEntered(with event: NSEvent) {
-        onHoverChanged?(true)
+        setHovering(true)
     }
 
     override func mouseExited(with event: NSEvent) {
-        onHoverChanged?(false)
+        setHovering(false)
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        reconcileHoverState()
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        window?.acceptsMouseMovedEvents = true
+    }
+
+    override func updateLayer() {
+        super.updateLayer()
+        reconcileHoverState()
     }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
         nil
+    }
+
+    private func reconcileHoverState() {
+        guard let window else {
+            setHovering(false)
+            return
+        }
+
+        let location = convert(window.mouseLocationOutsideOfEventStream, from: nil)
+        setHovering(bounds.contains(location))
+    }
+
+    private func setHovering(_ hovering: Bool) {
+        guard isHovering != hovering else {
+            return
+        }
+
+        isHovering = hovering
+        updateHoverMonitorTimer()
+        onHoverChanged?(hovering)
+    }
+
+    private func updateHoverMonitorTimer() {
+        hoverMonitorTimer?.invalidate()
+        hoverMonitorTimer = nil
+
+        guard isHovering else {
+            return
+        }
+
+        hoverMonitorTimer = Timer.scheduledTimer(withTimeInterval: 0.10, repeats: true) { [weak self] _ in
+            self?.reconcileHoverState()
+        }
+    }
+
+    deinit {
+        hoverMonitorTimer?.invalidate()
     }
 }
 

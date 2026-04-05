@@ -33,7 +33,7 @@ struct IslandListItem: Identifiable, Hashable {
 final class IslandController: ObservableObject {
     static let expandAnimation = Animation.spring(response: 0.66, dampingFraction: 0.60, blendDuration: 0.10)
     static let collapseAnimation = Animation.spring(response: 0.38, dampingFraction: 1.0)
-    private static let hoverExitDelay: TimeInterval = 0.16
+    private static let hoverExitDelay: TimeInterval = 0.40
     private static let hoverToggleCooldown: TimeInterval = 0.24
 
     @Published var collapsedMode: CollapsedIslandMode = .detailed
