@@ -4,40 +4,25 @@ import SwiftUI
 @MainActor
 final class CodexBridgeServer: ObservableObject {
     @Published private(set) var sessions: [CodexRecentSession] = []
-    @Published private(set) var loadError: String?
 
-    private let sessionStore: CodexSessionStore
     private let debugLogger: CodexHookDebugLogger
     private let socketPath: String
     private let acceptQueue = DispatchQueue(label: "CodexIsland.bridge.accept", qos: .userInitiated)
     private let readQueue = DispatchQueue(label: "CodexIsland.bridge.read", qos: .userInitiated)
     private var listenSocket: Int32 = -1
     private var pendingApprovalClients: [String: Int32] = [:]
+    private var sessionIndex: [String: CodexRecentSession] = [:]
 
     init(
-        sessionStore: CodexSessionStore = CodexSessionStore(),
         debugLogger: CodexHookDebugLogger = CodexHookDebugLogger(),
         socketPath: String = "/tmp/vibe-island.sock"
     ) {
-        self.sessionStore = sessionStore
         self.debugLogger = debugLogger
         self.socketPath = socketPath
     }
 
     func start() {
-        loadSessions()
         startSocketServer()
-    }
-
-    func loadSessions() {
-        do {
-            sessions = try sessionStore.recentSessions(limit: 12)
-            loadError = nil
-        } catch {
-            sessions = []
-            loadError = error.localizedDescription
-            debugLogger.log("failed to load sessions in app: \(error.localizedDescription)")
-        }
     }
 
     func approve(_ session: CodexRecentSession) {
@@ -158,22 +143,13 @@ final class CodexBridgeServer: ObservableObject {
         debugLogger.log("received \(data.count) bytes from socket client")
 
         let decodedPayload = decodeIncomingPayload(data)
-
-        do {
-            try sessionStore.recordPayloadData(data)
-        } catch {
-            debugLogger.log("failed to record socket payload: \(error.localizedDescription)")
-        }
+        recordIncomingPayload(data)
 
         if let payload = decodedPayload, payload.requiresApproval, let key = approvalKey(for: payload) {
             pendingApprovalClients[key] = client
             debugLogger.log("stored pending approval client for \(key)")
         } else {
             close(client)
-        }
-
-        Task { @MainActor [weak self] in
-            self?.loadSessions()
         }
     }
 
@@ -195,14 +171,8 @@ final class CodexBridgeServer: ObservableObject {
 
         if let toolUseID = session.toolUseID {
             let status = response.hookSpecificOutput?.permissionDecision?.rawValue ?? "resolved"
-            do {
-                try sessionStore.updateApproval(sessionID: session.id, toolUseID: toolUseID, status: status)
-            } catch {
-                debugLogger.log("failed to persist approval status for \(key): \(error.localizedDescription)")
-            }
+            updateApproval(sessionID: session.id, toolUseID: toolUseID, status: status)
         }
-
-        loadSessions()
     }
 
     private func decodeIncomingPayload(_ data: Data) -> IncomingPayload? {
@@ -240,6 +210,183 @@ final class CodexBridgeServer: ObservableObject {
 
         return "\(sessionID)::\(toolUseID)"
     }
+
+    private func recordIncomingPayload(_ data: Data) {
+        if let invocation = try? JSONDecoder().decode(CodexHookEventEnvelopeProxy.self, from: data).decodeInvocation(from: data) {
+            upsert(session: makeSession(from: invocation))
+            return
+        }
+
+        if let payload = try? JSONDecoder().decode(IncomingBridgePayload.self, from: data) {
+            upsert(session: makeSession(from: payload))
+            return
+        }
+
+        debugLogger.log("failed to decode socket payload into session")
+    }
+
+    private func updateApproval(sessionID: String, toolUseID: String, status: String) {
+        guard var session = sessionIndex[sessionID], session.toolUseID == toolUseID else {
+            debugLogger.log("no in-memory session for approval update \(sessionID)::\(toolUseID)")
+            return
+        }
+
+        session = CodexRecentSession(
+            id: session.id,
+            title: session.title,
+            updatedAt: Date(),
+            state: session.state,
+            cwd: session.cwd,
+            model: session.model,
+            transcriptPath: session.transcriptPath,
+            lastEvent: session.lastEvent,
+            lastAssistantMessage: session.lastAssistantMessage,
+            toolName: session.toolName,
+            toolUseID: session.toolUseID,
+            toolCommand: session.toolCommand,
+            requiresApproval: false,
+            approvalStatus: status
+        )
+        upsert(session: session)
+    }
+
+    private func upsert(session: CodexRecentSession) {
+        if let existing = sessionIndex[session.id] {
+            sessionIndex[session.id] = merge(existing: existing, update: session)
+        } else {
+            sessionIndex[session.id] = session
+        }
+
+        sessions = sessionIndex.values
+            .sorted { $0.updatedAt > $1.updatedAt }
+            .prefix(12)
+            .map { $0 }
+    }
+
+    private func merge(existing: CodexRecentSession, update: CodexRecentSession) -> CodexRecentSession {
+        CodexRecentSession(
+            id: existing.id,
+            title: update.title,
+            updatedAt: update.updatedAt,
+            state: update.state,
+            cwd: update.cwd,
+            model: update.model == "unknown" ? existing.model : update.model,
+            transcriptPath: update.transcriptPath ?? existing.transcriptPath,
+            lastEvent: update.lastEvent,
+            lastAssistantMessage: update.lastAssistantMessage ?? existing.lastAssistantMessage,
+            toolName: update.toolName ?? existing.toolName,
+            toolUseID: update.toolUseID ?? existing.toolUseID,
+            toolCommand: update.toolCommand ?? existing.toolCommand,
+            requiresApproval: update.requiresApproval,
+            approvalStatus: update.approvalStatus ?? existing.approvalStatus
+        )
+    }
+
+    private func makeSession(from invocation: CodexHookInvocation) -> CodexRecentSession {
+        switch invocation {
+        case .sessionStart(let context):
+            return CodexRecentSession(
+                id: context.sessionID,
+                title: makeTitle(from: context.cwd),
+                updatedAt: Date(),
+                state: .running,
+                cwd: context.cwd,
+                model: context.model,
+                transcriptPath: context.transcriptPath,
+                lastEvent: context.hookEventName.rawValue,
+                lastAssistantMessage: nil,
+                toolName: nil,
+                toolUseID: nil,
+                toolCommand: nil,
+                requiresApproval: false,
+                approvalStatus: nil
+            )
+        case .preToolUse(let context):
+            return CodexRecentSession(
+                id: context.sessionID,
+                title: makeTitle(from: context.cwd),
+                updatedAt: Date(),
+                state: .running,
+                cwd: context.cwd,
+                model: context.model,
+                transcriptPath: context.transcriptPath,
+                lastEvent: context.hookEventName.rawValue,
+                lastAssistantMessage: nil,
+                toolName: context.toolName.displayName,
+                toolUseID: context.toolUseID,
+                toolCommand: context.toolInput.command,
+                requiresApproval: true,
+                approvalStatus: "pending"
+            )
+        case .postToolUse(let context):
+            return CodexRecentSession(
+                id: context.sessionID,
+                title: makeTitle(from: context.cwd),
+                updatedAt: Date(),
+                state: .running,
+                cwd: context.cwd,
+                model: context.model,
+                transcriptPath: context.transcriptPath,
+                lastEvent: context.hookEventName.rawValue,
+                lastAssistantMessage: nil,
+                toolName: context.toolName.displayName,
+                toolUseID: context.toolUseID,
+                toolCommand: context.toolInput.command,
+                requiresApproval: false,
+                approvalStatus: nil
+            )
+        case .stop(let context):
+            return CodexRecentSession(
+                id: context.sessionID,
+                title: makeTitle(from: context.cwd),
+                updatedAt: Date(),
+                state: context.stopHookActive ? .running : .completed,
+                cwd: context.cwd,
+                model: context.model,
+                transcriptPath: context.transcriptPath,
+                lastEvent: context.hookEventName.rawValue,
+                lastAssistantMessage: context.lastAssistantMessage,
+                toolName: nil,
+                toolUseID: nil,
+                toolCommand: nil,
+                requiresApproval: false,
+                approvalStatus: nil
+            )
+        }
+    }
+
+    private func makeSession(from payload: IncomingBridgePayload) -> CodexRecentSession {
+        let eventName = payload.event ?? payload.codexEventType
+        return CodexRecentSession(
+            id: payload.sessionID ?? UUID().uuidString,
+            title: makeTitle(from: payload.cwd ?? payload.transcriptPath ?? "unknown"),
+            updatedAt: Date(),
+            state: state(for: payload),
+            cwd: payload.cwd ?? payload.transcriptPath ?? "unknown",
+            model: payload.model ?? "unknown",
+            transcriptPath: payload.transcriptPath,
+            lastEvent: eventName,
+            lastAssistantMessage: payload.lastAssistantMessage,
+            toolName: payload.toolName,
+            toolUseID: payload.toolUseID,
+            toolCommand: payload.toolCommand ?? payload.toolInput?.command,
+            requiresApproval: payload.requiresApproval,
+            approvalStatus: payload.requiresApproval ? "pending" : payload.permissionStatus
+        )
+    }
+
+    private func state(for payload: IncomingBridgePayload) -> CodexSessionState {
+        let eventName = (payload.event ?? payload.codexEventType ?? "").lowercased()
+        if eventName == "stop" || eventName == "hook-stop" || eventName == "hook-session-stop" {
+            return payload.stopHookActive == true ? .running : .completed
+        }
+        return .running
+    }
+
+    private func makeTitle(from path: String) -> String {
+        let component = URL(fileURLWithPath: path).lastPathComponent
+        return component.isEmpty ? path : component
+    }
 }
 
 private struct IncomingPayload {
@@ -251,9 +398,18 @@ private struct IncomingPayload {
 private struct IncomingBridgePayload: Decodable {
     let event: String?
     let sessionID: String?
+    let cwd: String?
+    let model: String?
+    let transcriptPath: String?
     let toolUseID: String?
+    let stopHookActive: Bool?
+    let lastAssistantMessage: String?
+    let toolName: String?
+    let toolInput: BridgeToolInput?
+    let toolCommand: String?
     let codexEventType: String?
     let codexPermissionMode: String?
+    let permissionStatus: String?
 
     var requiresApproval: Bool {
         let eventName = (event ?? codexEventType ?? "").lowercased()
@@ -266,8 +422,55 @@ private struct IncomingBridgePayload: Decodable {
     private enum CodingKeys: String, CodingKey {
         case event
         case sessionID = "session_id"
+        case cwd
+        case model
+        case transcriptPath = "transcript_path"
         case toolUseID = "tool_use_id"
+        case stopHookActive = "stop_hook_active"
+        case lastAssistantMessage = "last_assistant_message"
+        case toolName = "tool_name"
+        case toolInput = "tool_input"
+        case toolCommand = "tool_command"
         case codexEventType = "codex_event_type"
         case codexPermissionMode = "codex_permission_mode"
+        case permissionStatus = "permission_status"
+    }
+}
+
+private struct BridgeToolInput: Decodable {
+    let command: String?
+}
+
+private struct CodexHookEventEnvelopeProxy: Decodable {
+    let hookEventName: CodexHookEventName
+
+    private enum CodingKeys: String, CodingKey {
+        case hookEventName = "hook_event_name"
+    }
+
+    func decodeInvocation(from data: Data) throws -> CodexHookInvocation {
+        let decoder = JSONDecoder()
+
+        switch hookEventName {
+        case .sessionStart:
+            return .sessionStart(try decoder.decode(CodexSessionStartContext.self, from: data))
+        case .preToolUse:
+            return .preToolUse(try decoder.decode(CodexPreToolUseContext.self, from: data))
+        case .postToolUse:
+            return .postToolUse(try decoder.decode(CodexPostToolUseContext.self, from: data))
+        case .stop:
+            return .stop(try decoder.decode(CodexStopContext.self, from: data))
+        }
+    }
+}
+
+private extension CodexToolName {
+    var displayName: String {
+        switch self {
+        case .bash:
+            return "Bash"
+        case .other(let value):
+            return value
+        }
     }
 }

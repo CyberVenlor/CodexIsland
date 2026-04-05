@@ -109,17 +109,11 @@ struct ContentView: View {
                 .padding(.vertical, 4)
             }
             .overlay {
-                if let loadError = bridgeServer.loadError {
+                if bridgeServer.sessions.isEmpty {
                     ContentUnavailableView(
-                        "Unable to Load Codex Sessions",
-                        systemImage: "exclamationmark.triangle",
-                        description: Text(loadError)
-                    )
-                } else if bridgeServer.sessions.isEmpty {
-                    ContentUnavailableView(
-                        "No Recent Codex Sessions",
+                        "No Live Codex Sessions",
                         systemImage: "bolt.slash",
-                        description: Text("No sessions were captured from Codex hooks yet.")
+                        description: Text("Only sessions received after this app launch are tracked.")
                     )
                 }
             }
