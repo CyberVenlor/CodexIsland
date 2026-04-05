@@ -201,13 +201,16 @@ struct IslandContentView: View {
     @EnvironmentObject private var settingsStore: SettingsConfigStore
 
     private let detailedSize = IslandShellStyle.forState(.collapsed(.detailed)).size
-    private let expandedSize = IslandShellStyle.forState(.expanded).size
 
     private var isExpanded: Bool {
-        if case .expanded = state {
+        if case .expanded(_) = state {
             return true
         }
         return false
+    }
+
+    private var expandedSize: CGSize {
+        IslandShellStyle.forState(state).size
     }
 
     private var isDetailedCollapsed: Bool {

@@ -19,7 +19,7 @@ enum CollapsedIslandMode: String, CaseIterable, Identifiable {
 
 enum IslandPresentationState: Equatable {
     case collapsed(CollapsedIslandMode)
-    case expanded
+    case expanded(ExpandedIslandPanel)
 }
 
 enum ExpandedIslandPanel: Equatable {
@@ -58,7 +58,7 @@ final class IslandController: ObservableObject {
 
     var presentationState: IslandPresentationState {
         if isExpanded {
-            .expanded
+            .expanded(activePanel)
         } else {
             .collapsed(collapsedMode)
         }

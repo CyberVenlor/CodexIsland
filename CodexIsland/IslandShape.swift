@@ -28,7 +28,7 @@ struct IslandShellStyle: Equatable {
                 strokeOpacity: 0.72,
                 shadowOpacity: 0.10
             )
-        case .expanded:
+        case .expanded(.sessions):
             IslandShellStyle(
                 size: CGSize(width: 420, height: 480),
                 topRadius: 8,
@@ -37,10 +37,19 @@ struct IslandShellStyle: Equatable {
                 strokeOpacity: 0.12,
                 shadowOpacity: 0.26
             )
+        case .expanded(.settings):
+            IslandShellStyle(
+                size: CGSize(width: 480, height: 620),
+                topRadius: 8,
+                bottomRadius: 22,
+                backgroundOpacity: 1.0,
+                strokeOpacity: 0.12,
+                shadowOpacity: 0.28
+            )
         }
     }
 
-    static let maximumSize = CGSize(width: 480, height: 640)
+    static let maximumSize = CGSize(width: 520, height: 700)
     static let overshootWidth: CGFloat = 32
     static let overshootHeight: CGFloat = 36
     static let minimumBottomY: CGFloat = 32
