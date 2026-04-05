@@ -38,30 +38,10 @@ struct ContentView: View {
                         }
                     }
 
-                    Text(session.id)
-                        .font(.caption.monospaced())
-                        .foregroundStyle(.secondary)
-
-                    Text(session.cwd)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-
-                    HStack(spacing: 12) {
-                        Text("event: \(session.lastEvent ?? "-")")
-                        Text("model: \(session.model)")
-                    }
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
                     if !session.toolCalls.isEmpty {
                         VStack(alignment: .leading, spacing: 8) {
                             ForEach(session.toolCalls) { toolCall in
                                 VStack(alignment: .leading, spacing: 6) {
-                                    Text(toolCall.lastEvent ?? "ToolUse")
-                                        .font(.caption.weight(.semibold))
-
                                     Text("tool: \(toolCall.toolName ?? toolCall.toolUseID ?? "-")")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
@@ -107,14 +87,6 @@ struct ContentView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .lineLimit(2)
-                    }
-
-                    if let transcriptPath = session.transcriptPath {
-                        Text(transcriptPath)
-                            .font(.caption2.monospaced())
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
                     }
 
                     if let lastAssistantMessage = session.lastAssistantMessage, !lastAssistantMessage.isEmpty {
