@@ -123,7 +123,6 @@ struct SettingsPanelView: View {
         formSection {
             settingsCard("Startup") {
                 Toggle("Launch at login", isOn: $settingsStore.config.launchAtLogin)
-                Toggle("Open main window on startup", isOn: $settingsStore.config.openOnStartup)
             }
 
             settingsCard("System") {

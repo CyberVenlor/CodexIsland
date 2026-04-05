@@ -3,7 +3,6 @@ import Foundation
 
 struct SettingsConfig: Codable {
     var launchAtLogin = true
-    var openOnStartup = true
     var displayName = "Faker"
     var preferredLanguage = "English"
     var hooksEnabled = true
