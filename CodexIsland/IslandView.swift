@@ -48,7 +48,10 @@ struct IslandView: View {
         HoverTrackingView { isHovering in
             controller.handleHoverChange(isHovering)
         }
-            .frame(width: shellStyle.size.width, height: shellStyle.size.height)
+            .frame(
+                width: shellStyle.size.width,
+                height: shellStyle.size.height + IslandOverlayLayout.topEdgeHoverTolerance
+            )
     }
 
     private var shell: some View {
@@ -158,7 +161,8 @@ private final class MouseTrackingNSView: NSView {
         }
 
         let location = convert(window.mouseLocationOutsideOfEventStream, from: nil)
-        setHovering(bounds.contains(location))
+        let hoverBounds = bounds.insetBy(dx: 0, dy: -IslandOverlayLayout.topEdgeHoverTolerance)
+        setHovering(hoverBounds.contains(location))
     }
 
     private func setHovering(_ hovering: Bool) {

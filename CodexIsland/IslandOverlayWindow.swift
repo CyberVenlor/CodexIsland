@@ -8,6 +8,7 @@ enum IslandOverlayLayout {
     static let topPadding: CGFloat = 0
     static let bottomPadding: CGFloat = 28
     static let topMargin: CGFloat = 0
+    static let topEdgeHoverTolerance: CGFloat = 8
 
     static let windowSize = CGSize(
         width: IslandShellStyle.canvasSize.width + (horizontalPadding * 2),
@@ -27,9 +28,9 @@ enum IslandOverlayLayout {
     static func interactiveRect(for shellSize: CGSize, in bounds: CGRect) -> CGRect {
         CGRect(
             x: bounds.midX - (shellSize.width / 2),
-            y: bounds.maxY - topPadding - shellSize.height,
+            y: bounds.maxY - topPadding - shellSize.height - topEdgeHoverTolerance,
             width: shellSize.width,
-            height: shellSize.height
+            height: shellSize.height + topEdgeHoverTolerance
         )
     }
 }
