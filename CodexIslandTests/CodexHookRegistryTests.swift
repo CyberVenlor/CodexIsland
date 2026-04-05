@@ -16,7 +16,7 @@ struct CodexHookRegistryTests {
         }
         """.data(using: .utf8)!
 
-        let registry = CodexHookRegistry()
+        let registry = CodexHookRegistry(sessionStore: nil)
             .onSessionStart { context in
                 #expect(context.source == .startup)
                 return .sessionStart(additionalContext: "Load workspace rules first.")
@@ -45,7 +45,7 @@ struct CodexHookRegistryTests {
         }
         """.data(using: .utf8)!
 
-        let registry = CodexHookRegistry()
+        let registry = CodexHookRegistry(sessionStore: nil)
             .onPreToolUse { context in
                 #expect(context.toolInput.command == "rm -rf build")
                 return .denyToolUse(reason: "Destructive commands require manual review.")
@@ -79,7 +79,7 @@ struct CodexHookRegistryTests {
         }
         """.data(using: .utf8)!
 
-        let registry = CodexHookRegistry()
+        let registry = CodexHookRegistry(sessionStore: nil)
             .onPostToolUse { context in
                 #expect(context.toolInput.command == "swift test")
                 #expect(context.toolName == .bash)
@@ -111,7 +111,7 @@ struct CodexHookRegistryTests {
         }
         """.data(using: .utf8)!
 
-        let registry = CodexHookRegistry()
+        let registry = CodexHookRegistry(sessionStore: nil)
             .onSessionEnd { context in
                 #expect(context.lastAssistantMessage == "All tests passed.")
                 return .sessionEndContinue(reason: "Run one more lint pass.")
@@ -127,52 +127,57 @@ struct CodexHookRegistryTests {
     }
 
     @Test func recentSessionsLoadTitlesAndStates() throws {
-        let testRoot = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
-        let sessionsDirectory = testRoot.appendingPathComponent("sessions/2026/04/04", isDirectory: true)
-        try FileManager.default.createDirectory(at: sessionsDirectory, withIntermediateDirectories: true)
+        let storeURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+            .appendingPathComponent("hook-sessions.json")
+        let formatter = ISO8601DateFormatter()
 
-        let sessionIndex = """
-        {"id":"session-running","thread_name":"Active Session","updated_at":"2026-04-04T11:36:35Z"}
-        {"id":"session-idle","thread_name":"Idle Session","updated_at":"2026-04-04T11:31:23Z"}
-        """
-        try sessionIndex.write(to: testRoot.appendingPathComponent("session_index.jsonl"), atomically: true, encoding: .utf8)
-
-        let globalState = """
-        {"electron-persisted-atom-state":{"terminal-open-by-key":{"session-running":true}}}
-        """
-        try globalState.write(to: testRoot.appendingPathComponent(".codex-global-state.json"), atomically: true, encoding: .utf8)
-
-        let runningTranscript = """
-        {"timestamp":"2026-04-04T12:24:01.190Z","type":"session_meta","payload":{"id":"session-running"}}
-        {"timestamp":"2026-04-04T12:24:07.708Z","type":"response_item","payload":{"type":"message","status":"completed"}}
-        """
-        try runningTranscript.write(
-            to: sessionsDirectory.appendingPathComponent("rollout-running.jsonl"),
-            atomically: true,
-            encoding: .utf8
+        let runningRegistry = CodexHookRegistry(
+            sessionStore: CodexSessionStore(
+                storeURL: storeURL,
+                now: formatter.date(from: "2026-04-04T12:24:01Z")!
+            )
+        )
+        let completedRegistry = CodexHookRegistry(
+            sessionStore: CodexSessionStore(
+                storeURL: storeURL,
+                now: formatter.date(from: "2026-04-04T12:28:07Z")!
+            )
         )
 
-        let idleTranscript = """
-        {"timestamp":"2026-04-04T12:20:01.190Z","type":"session_meta","payload":{"id":"session-idle"}}
-        {"timestamp":"2026-04-04T12:28:07.708Z","type":"event_msg","payload":{"type":"task_complete"}}
-        """
-        try idleTranscript.write(
-            to: sessionsDirectory.appendingPathComponent("rollout-idle.jsonl"),
-            atomically: true,
-            encoding: .utf8
-        )
+        let sessionStart = """
+        {
+          "session_id": "session-running",
+          "transcript_path": "/tmp/running.jsonl",
+          "cwd": "/tmp/Active Session",
+          "hook_event_name": "SessionStart",
+          "model": "gpt-5.4",
+          "source": "startup"
+        }
+        """.data(using: .utf8)!
 
-        let store = CodexSessionStore(
-            codexHomeURL: testRoot,
-            now: ISO8601DateFormatter().date(from: "2026-04-04T12:40:00Z")!
-        )
+        let stop = """
+        {
+          "session_id": "session-idle",
+          "transcript_path": "/tmp/idle.jsonl",
+          "cwd": "/tmp/Idle Session",
+          "hook_event_name": "Stop",
+          "model": "gpt-5.4",
+          "turn_id": "turn-1",
+          "stop_hook_active": false,
+          "last_assistant_message": "Finished."
+        }
+        """.data(using: .utf8)!
 
-        let sessions = try store.recentSessions(limit: 2)
+        _ = try runningRegistry.handle(input: sessionStart)
+        _ = try completedRegistry.handle(input: stop)
+
+        let sessions = try CodexSessionStore(storeURL: storeURL).recentSessions(limit: 2)
 
         #expect(sessions.count == 2)
-        #expect(sessions[0].title == "Active Session")
-        #expect(sessions[0].state == .running)
-        #expect(sessions[1].title == "Idle Session")
-        #expect(sessions[1].state == .completed)
+        #expect(sessions[0].title == "Idle Session")
+        #expect(sessions[0].state == .completed)
+        #expect(sessions[1].title == "Active Session")
+        #expect(sessions[1].state == .running)
     }
 }

@@ -8,11 +8,11 @@
 import SwiftUI
 
 struct ContentView: View {
-    @State private var sessions: [CodexRecentSession] = []
+    @EnvironmentObject private var bridgeServer: CodexBridgeServer
 
     var body: some View {
         NavigationStack {
-            List(sessions) { session in
+            List(bridgeServer.sessions) { session in
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
                         Text(session.title)
@@ -32,6 +32,34 @@ struct ContentView: View {
                         .font(.caption.monospaced())
                         .foregroundStyle(.secondary)
 
+                    Text(session.cwd)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+
+                    HStack(spacing: 12) {
+                        Text("event: \(session.lastEvent ?? "-")")
+                        Text("model: \(session.model)")
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                    if let transcriptPath = session.transcriptPath {
+                        Text(transcriptPath)
+                            .font(.caption2.monospaced())
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+
+                    if let lastAssistantMessage = session.lastAssistantMessage, !lastAssistantMessage.isEmpty {
+                        Text(lastAssistantMessage)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                    }
+
                     Text(session.updatedAt.formatted(date: .abbreviated, time: .shortened))
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -39,18 +67,21 @@ struct ContentView: View {
                 .padding(.vertical, 4)
             }
             .overlay {
-                if sessions.isEmpty {
+                if let loadError = bridgeServer.loadError {
+                    ContentUnavailableView(
+                        "Unable to Load Codex Sessions",
+                        systemImage: "exclamationmark.triangle",
+                        description: Text(loadError)
+                    )
+                } else if bridgeServer.sessions.isEmpty {
                     ContentUnavailableView(
                         "No Recent Codex Sessions",
                         systemImage: "bolt.slash",
-                        description: Text("No sessions were found in ~/.codex/session_index.jsonl.")
+                        description: Text("No sessions were captured from Codex hooks yet.")
                     )
                 }
             }
             .navigationTitle("Recent Codex Sessions")
-        }
-        .task {
-            sessions = (try? CodexSessionStore().recentSessions(limit: 12)) ?? []
         }
     }
 
@@ -71,5 +102,6 @@ struct ContentView: View {
 struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
         ContentView()
+            .environmentObject(CodexBridgeServer())
     }
 }

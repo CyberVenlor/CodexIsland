@@ -9,9 +9,15 @@ import SwiftUI
 
 @main
 struct CodexIslandApp: App {
+    @StateObject private var bridgeServer = CodexBridgeServer()
+
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environmentObject(bridgeServer)
+                .task {
+                    bridgeServer.start()
+                }
         }
     }
 }

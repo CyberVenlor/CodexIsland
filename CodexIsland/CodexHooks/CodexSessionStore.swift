@@ -5,7 +5,11 @@ struct CodexRecentSession: Identifiable, Equatable {
     let title: String
     let updatedAt: Date
     let state: CodexSessionState
+    let cwd: String
+    let model: String
     let transcriptPath: String?
+    let lastEvent: String?
+    let lastAssistantMessage: String?
 }
 
 enum CodexSessionState: Equatable {
@@ -29,254 +33,349 @@ enum CodexSessionState: Equatable {
 }
 
 struct CodexSessionStore {
+    private static let encoder: JSONEncoder = {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        return encoder
+    }()
+
+    private static let decoder: JSONDecoder = {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return decoder
+    }()
+
     private let fileManager: FileManager
-    private let codexHomeURL: URL
+    private let storeURL: URL
     private let now: Date
+    private let debugLogger: CodexHookDebugLogger
 
     init(
-        codexHomeURL: URL = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".codex", isDirectory: true),
+        storeURL: URL = URL(fileURLWithPath: NSHomeDirectory())
+            .appendingPathComponent(".codex", isDirectory: true)
+            .appendingPathComponent("codex-island-hook-sessions.json"),
         fileManager: FileManager = .default,
-        now: Date = Date()
+        now: Date = Date(),
+        debugLogger: CodexHookDebugLogger = CodexHookDebugLogger()
     ) {
-        self.codexHomeURL = codexHomeURL
+        self.storeURL = storeURL
         self.fileManager = fileManager
         self.now = now
+        self.debugLogger = debugLogger
     }
 
     func recentSessions(limit: Int = 8) throws -> [CodexRecentSession] {
-        let indexEntries = try loadIndexEntries()
-        let runningSessionIDs = loadRunningSessionIDs()
-        let groupedTranscriptPaths = try transcriptPathsByID()
-
-        return indexEntries
-            .prefix(limit)
-            .map { entry in
-                let transcriptPath = groupedTranscriptPaths[entry.id]
-                let state = sessionState(
-                    id: entry.id,
-                    transcriptPath: transcriptPath,
-                    isRunning: runningSessionIDs.contains(entry.id)
-                )
-
-                return CodexRecentSession(
-                    id: entry.id,
-                    title: entry.threadName,
-                    updatedAt: entry.updatedAt,
-                    state: state,
-                    transcriptPath: transcriptPath?.path
-                )
-            }
-    }
-
-    private func loadIndexEntries() throws -> [SessionIndexEntry] {
-        let indexURL = codexHomeURL.appendingPathComponent("session_index.jsonl")
-        guard fileManager.fileExists(atPath: indexURL.path) else {
-            return []
-        }
-
-        let data = try Data(contentsOf: indexURL)
-        let content = String(decoding: data, as: UTF8.self)
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-
-        return try content
-            .split(whereSeparator: \.isNewline)
-            .map { line in
-                try decoder.decode(SessionIndexEntry.self, from: Data(line.utf8))
-            }
+        let sessions = try loadEntries()
             .sorted { $0.updatedAt > $1.updatedAt }
+            .prefix(limit)
+            .map {
+                CodexRecentSession(
+                    id: $0.id,
+                    title: $0.title,
+                    updatedAt: $0.updatedAt,
+                    state: $0.sessionState,
+                    cwd: $0.cwd,
+                    model: $0.model,
+                    transcriptPath: $0.transcriptPath,
+                    lastEvent: $0.lastEvent,
+                    lastAssistantMessage: $0.lastAssistantMessage
+                )
+            }
+
+        debugLogger.log("recentSessions loaded \(sessions.count) sessions from \(storeURL.path)")
+        return sessions
     }
 
-    private func loadRunningSessionIDs() -> Set<String> {
-        let stateURL = codexHomeURL.appendingPathComponent(".codex-global-state.json")
-        guard
-            let data = try? Data(contentsOf: stateURL),
-            let globalState = try? JSONDecoder().decode(CodexGlobalState.self, from: data)
-        else {
+    func record(_ invocation: CodexHookInvocation) throws {
+        let update = SessionRecord(invocation: invocation, updatedAt: now)
+        try persist(update)
+    }
+
+    func recordPayloadData(_ data: Data) throws {
+        if let invocation = try? CodexHookInvocation.decode(from: data) {
+            debugLogger.log("recordPayloadData decoded raw Codex hook payload")
+            try record(invocation)
+            return
+        }
+
+        if let bridgePayload = try? Self.decoder.decode(CodexBridgePayload.self, from: data) {
+            debugLogger.log("recordPayloadData decoded bridge payload event=\(bridgePayload.event ?? bridgePayload.codexEventType ?? "unknown")")
+            try persist(SessionRecord(bridgePayload: bridgePayload, updatedAt: now))
+            return
+        }
+
+        if
+            let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let bridgePayload = CodexBridgePayload(dictionary: object)
+        {
+            debugLogger.log("recordPayloadData decoded bridge payload from dynamic JSON event=\(bridgePayload.event ?? bridgePayload.codexEventType ?? "unknown")")
+            try persist(SessionRecord(bridgePayload: bridgePayload, updatedAt: now))
+            return
+        }
+
+        let content = String(data: data, encoding: .utf8) ?? "<non-utf8>"
+        debugLogger.log("recordPayloadData could not decode payload: \(content)")
+    }
+
+    private func persist(_ update: SessionRecord) throws {
+        var entries = try loadEntries()
+
+        if let index = entries.firstIndex(where: { $0.id == update.id }) {
+            entries[index].merge(update)
+        } else {
+            entries.append(HookSessionEntry(record: update))
+        }
+
+        try saveEntries(entries)
+        debugLogger.log("saved session \(update.id) state=\(update.state) title=\(update.title) to \(storeURL.path)")
+    }
+
+    private func loadEntries() throws -> [HookSessionEntry] {
+        guard fileManager.fileExists(atPath: storeURL.path) else {
+            debugLogger.log("session store does not exist at \(storeURL.path)")
             return []
         }
 
-        return Set(
-            globalState.electronPersistedAtomState.terminalOpenByKey
-                .filter(\.value)
-                .map(\.key)
+        let data = try Data(contentsOf: storeURL)
+        guard !data.isEmpty else {
+            debugLogger.log("session store is empty at \(storeURL.path)")
+            return []
+        }
+
+        let entries = try Self.decoder.decode([HookSessionEntry].self, from: data)
+        debugLogger.log("decoded \(entries.count) stored sessions from \(storeURL.path)")
+        return entries
+    }
+
+    private func saveEntries(_ entries: [HookSessionEntry]) throws {
+        try fileManager.createDirectory(
+            at: storeURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true,
+            attributes: nil
         )
-    }
-
-    private func transcriptPathsByID() throws -> [String: URL] {
-        let sessionsURL = codexHomeURL.appendingPathComponent("sessions", isDirectory: true)
-        guard fileManager.fileExists(atPath: sessionsURL.path) else {
-            return [:]
-        }
-
-        let transcriptURLs = try fileManager.subpathsOfDirectory(atPath: sessionsURL.path)
-            .filter { $0.hasSuffix(".jsonl") }
-            .map { sessionsURL.appendingPathComponent($0) }
-
-        var result: [String: URL] = [:]
-
-        for url in transcriptURLs {
-            guard let id = sessionID(fromTranscriptURL: url) else {
-                continue
-            }
-
-            if let current = result[id] {
-                let currentDate = (try? modificationDate(for: current)) ?? .distantPast
-                let candidateDate = (try? modificationDate(for: url)) ?? .distantPast
-
-                if candidateDate > currentDate {
-                    result[id] = url
-                }
-            } else {
-                result[id] = url
-            }
-        }
-
-        return result
-    }
-
-    private func sessionState(id: String, transcriptPath: URL?, isRunning: Bool) -> CodexSessionState {
-        if isRunning {
-            return .running
-        }
-
-        guard let transcriptPath else {
-            return .idle
-        }
-
-        guard let lastEvent = loadLastEvent(from: transcriptPath) else {
-            return .idle
-        }
-
-        if lastEvent.type == "event_msg", lastEvent.payloadType == "task_complete" {
-            return .completed
-        }
-
-        if lastEvent.type == "response_item", lastEvent.payloadStatus == "completed" {
-            return .completed
-        }
-
-        if isRecentlyUpdated(transcriptPath) {
-            return .running
-        }
-
-        return .idle
-    }
-
-    private func loadLastEvent(from url: URL) -> TranscriptEvent? {
-        guard
-            let data = try? Data(contentsOf: url),
-            let content = String(data: data, encoding: .utf8)
-        else {
-            return nil
-        }
-
-        let decoder = JSONDecoder()
-
-        for line in content.split(whereSeparator: \.isNewline).reversed() {
-            guard let event = try? decoder.decode(TranscriptEvent.self, from: Data(line.utf8)) else {
-                continue
-            }
-
-            if event.type == "event_msg", event.payloadType == "token_count" {
-                continue
-            }
-
-            return event
-        }
-
-        return nil
-    }
-
-    private func isRecentlyUpdated(_ url: URL) -> Bool {
-        guard let modifiedAt = try? modificationDate(for: url) else {
-            return false
-        }
-
-        return now.timeIntervalSince(modifiedAt) < 120
-    }
-
-    private func modificationDate(for url: URL) throws -> Date {
-        let values = try url.resourceValues(forKeys: [.contentModificationDateKey])
-        return values.contentModificationDate ?? .distantPast
-    }
-
-    private func sessionID(fromTranscriptURL url: URL) -> String? {
-        guard
-            let data = try? Data(contentsOf: url),
-            let firstLine = String(data: data, encoding: .utf8)?
-                .split(whereSeparator: \.isNewline)
-                .first
-        else {
-            return nil
-        }
-
-        let decoder = JSONDecoder()
-        return (try? decoder.decode(SessionMetaEnvelope.self, from: Data(firstLine.utf8)))?.payload.id
+        let data = try Self.encoder.encode(entries)
+        try data.write(to: storeURL, options: .atomic)
     }
 }
 
-private struct SessionIndexEntry: Decodable {
+private struct HookSessionEntry: Codable, Equatable {
     let id: String
-    let threadName: String
+    var title: String
+    var updatedAt: Date
+    var state: String
+    var transcriptPath: String?
+    var cwd: String
+    var model: String
+    var lastEvent: String?
+    var lastAssistantMessage: String?
+
+    init(record: SessionRecord) {
+        id = record.id
+        title = record.title
+        updatedAt = record.updatedAt
+        state = record.state
+        transcriptPath = record.transcriptPath
+        cwd = record.cwd
+        model = record.model
+        lastEvent = record.lastEvent
+        lastAssistantMessage = record.lastAssistantMessage
+    }
+
+    var sessionState: CodexSessionState {
+        switch state {
+        case "running":
+            return .running
+        case "idle":
+            return .idle
+        case "completed":
+            return .completed
+        default:
+            return .unknown(state)
+        }
+    }
+
+    mutating func merge(_ record: SessionRecord) {
+        title = record.title
+        updatedAt = record.updatedAt
+        state = record.state
+        transcriptPath = record.transcriptPath ?? transcriptPath
+        cwd = record.cwd
+        model = record.model == "unknown" ? model : record.model
+        lastEvent = record.lastEvent
+        lastAssistantMessage = record.lastAssistantMessage ?? lastAssistantMessage
+    }
+}
+
+private struct SessionRecord {
+    let id: String
+    let title: String
     let updatedAt: Date
+    let state: String
+    let transcriptPath: String?
+    let cwd: String
+    let model: String
+    let lastEvent: String?
+    let lastAssistantMessage: String?
 
-    private enum CodingKeys: String, CodingKey {
-        case id
-        case threadName = "thread_name"
-        case updatedAt = "updated_at"
+    init(invocation: CodexHookInvocation, updatedAt: Date) {
+        switch invocation {
+        case .sessionStart(let context):
+            id = context.sessionID
+            title = Self.makeTitle(from: context.cwd)
+            self.updatedAt = updatedAt
+            state = "running"
+            transcriptPath = context.transcriptPath
+            cwd = context.cwd
+            model = context.model
+            lastEvent = context.hookEventName.rawValue
+            lastAssistantMessage = nil
+        case .preToolUse(let context):
+            id = context.sessionID
+            title = Self.makeTitle(from: context.cwd)
+            self.updatedAt = updatedAt
+            state = "running"
+            transcriptPath = context.transcriptPath
+            cwd = context.cwd
+            model = context.model
+            lastEvent = context.hookEventName.rawValue
+            lastAssistantMessage = nil
+        case .postToolUse(let context):
+            id = context.sessionID
+            title = Self.makeTitle(from: context.cwd)
+            self.updatedAt = updatedAt
+            state = "running"
+            transcriptPath = context.transcriptPath
+            cwd = context.cwd
+            model = context.model
+            lastEvent = context.hookEventName.rawValue
+            lastAssistantMessage = nil
+        case .stop(let context):
+            id = context.sessionID
+            title = Self.makeTitle(from: context.cwd)
+            self.updatedAt = updatedAt
+            state = context.stopHookActive ? "running" : "completed"
+            transcriptPath = context.transcriptPath
+            cwd = context.cwd
+            model = context.model
+            lastEvent = context.hookEventName.rawValue
+            lastAssistantMessage = context.lastAssistantMessage
+        }
+    }
+
+    init(bridgePayload: CodexBridgePayload, updatedAt: Date) {
+        id = bridgePayload.sessionID ?? UUID().uuidString
+        title = Self.makeTitle(from: bridgePayload.cwd ?? bridgePayload.transcriptPath ?? "unknown")
+        self.updatedAt = updatedAt
+        state = Self.state(from: bridgePayload)
+        transcriptPath = bridgePayload.transcriptPath
+        cwd = bridgePayload.cwd ?? transcriptPath ?? "unknown"
+        model = bridgePayload.model ?? "unknown"
+        lastEvent = bridgePayload.event ?? bridgePayload.codexEventType
+        lastAssistantMessage = bridgePayload.lastAssistantMessage ?? bridgePayload.codexLastAssistantMessage
+    }
+
+    private static func makeTitle(from cwd: String) -> String {
+        let component = URL(fileURLWithPath: cwd).lastPathComponent
+        return component.isEmpty ? cwd : component
+    }
+
+    private static func state(from payload: CodexBridgePayload) -> String {
+        let eventName = payload.codexEventType ?? payload.event ?? ""
+        let normalized = eventName.lowercased()
+
+        if eventName == "Stop", payload.stopHookActive == false {
+            return "completed"
+        }
+
+        if normalized == "stop" || normalized == "hook-stop" || normalized == "hook-session-stop" {
+            return "completed"
+        }
+
+        return "running"
     }
 }
 
-private struct CodexGlobalState: Decodable {
-    let electronPersistedAtomState: ElectronPersistedAtomState
+private struct CodexBridgePayload: Decodable {
+    let event: String?
+    let sessionID: String?
+    let cwd: String?
+    let model: String?
+    let transcriptPath: String?
+    let codexEventType: String?
+    let stopHookActive: Bool?
+    let lastAssistantMessage: String?
+    let codexLastAssistantMessage: String?
 
-    private enum CodingKeys: String, CodingKey {
-        case electronPersistedAtomState = "electron-persisted-atom-state"
-    }
-}
-
-private struct ElectronPersistedAtomState: Decodable {
-    let terminalOpenByKey: [String: Bool]
-
-    private enum CodingKeys: String, CodingKey {
-        case terminalOpenByKey = "terminal-open-by-key"
-    }
-}
-
-private struct SessionMetaEnvelope: Decodable {
-    let payload: SessionMetaPayload
-}
-
-private struct SessionMetaPayload: Decodable {
-    let id: String
-}
-
-private struct TranscriptEvent: Decodable {
-    let type: String
-    let payloadType: String?
-    let payloadStatus: String?
-
-    private enum CodingKeys: String, CodingKey {
-        case type
-        case payload
-    }
-
-    private enum PayloadCodingKeys: String, CodingKey {
-        case type
-        case status
+    init(
+        event: String?,
+        sessionID: String?,
+        cwd: String?,
+        model: String?,
+        transcriptPath: String?,
+        codexEventType: String?,
+        stopHookActive: Bool?,
+        lastAssistantMessage: String?,
+        codexLastAssistantMessage: String?
+    ) {
+        self.event = event
+        self.sessionID = sessionID
+        self.cwd = cwd
+        self.model = model
+        self.transcriptPath = transcriptPath
+        self.codexEventType = codexEventType
+        self.stopHookActive = stopHookActive
+        self.lastAssistantMessage = lastAssistantMessage
+        self.codexLastAssistantMessage = codexLastAssistantMessage
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        type = try container.decode(String.self, forKey: .type)
+        event = try container.decodeIfPresent(String.self, forKey: .event)
+        sessionID =
+            try container.decodeIfPresent(String.self, forKey: .sessionID)
+            ?? container.decodeIfPresent(String.self, forKey: .session)
+        cwd = try container.decodeIfPresent(String.self, forKey: .cwd)
+        model = try container.decodeIfPresent(String.self, forKey: .model)
+        transcriptPath =
+            try container.decodeIfPresent(String.self, forKey: .transcriptPath)
+            ?? container.decodeIfPresent(String.self, forKey: .codexTranscriptPath)
+        codexEventType =
+            try container.decodeIfPresent(String.self, forKey: .codexEventType)
+            ?? container.decodeIfPresent(String.self, forKey: .hookEventName)
+        stopHookActive = try container.decodeIfPresent(Bool.self, forKey: .stopHookActive)
+        lastAssistantMessage = try container.decodeIfPresent(String.self, forKey: .lastAssistantMessage)
+        codexLastAssistantMessage = try container.decodeIfPresent(String.self, forKey: .codexLastAssistantMessage)
+    }
 
-        if let payloadContainer = try? container.nestedContainer(keyedBy: PayloadCodingKeys.self, forKey: .payload) {
-            payloadType = try payloadContainer.decodeIfPresent(String.self, forKey: .type)
-            payloadStatus = try payloadContainer.decodeIfPresent(String.self, forKey: .status)
-        } else {
-            payloadType = nil
-            payloadStatus = nil
+    init?(dictionary: [String: Any]) {
+        event = dictionary["event"] as? String
+        sessionID = dictionary["session_id"] as? String ?? dictionary["session"] as? String
+        cwd = dictionary["cwd"] as? String
+        model = dictionary["model"] as? String
+        transcriptPath = dictionary["transcript_path"] as? String ?? dictionary["codex_transcript_path"] as? String
+        codexEventType = dictionary["codex_event_type"] as? String ?? dictionary["hook_event_name"] as? String
+        stopHookActive = dictionary["stop_hook_active"] as? Bool
+        lastAssistantMessage = dictionary["last_assistant_message"] as? String
+        codexLastAssistantMessage = dictionary["codex_last_assistant_message"] as? String
+
+        if event == nil, sessionID == nil, cwd == nil, transcriptPath == nil, codexEventType == nil {
+            return nil
         }
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case event
+        case sessionID = "session_id"
+        case session
+        case cwd
+        case model
+        case transcriptPath = "transcript_path"
+        case codexTranscriptPath = "codex_transcript_path"
+        case codexEventType = "codex_event_type"
+        case hookEventName = "hook_event_name"
+        case stopHookActive = "stop_hook_active"
+        case lastAssistantMessage = "last_assistant_message"
+        case codexLastAssistantMessage = "codex_last_assistant_message"
     }
 }
