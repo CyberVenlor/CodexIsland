@@ -5,11 +5,13 @@ final class CodexHookRegistry {
     typealias SessionEndHandler = (CodexStopContext) throws -> CodexHookResponse?
     typealias PreToolUseHandler = (CodexPreToolUseContext) throws -> CodexHookResponse?
     typealias PostToolUseHandler = (CodexPostToolUseContext) throws -> CodexHookResponse?
+    typealias UserPromptSubmitHandler = (CodexUserPromptSubmitContext) throws -> CodexHookResponse?
 
     private var sessionStartHandlers: [SessionStartHandler] = []
     private var sessionEndHandlers: [SessionEndHandler] = []
     private var preToolUseHandlers: [PreToolUseHandler] = []
     private var postToolUseHandlers: [PostToolUseHandler] = []
+    private var userPromptSubmitHandlers: [UserPromptSubmitHandler] = []
     private let sessionStore: CodexSessionStore?
     private let debugLogger: CodexHookDebugLogger
 
@@ -46,6 +48,12 @@ final class CodexHookRegistry {
         return self
     }
 
+    @discardableResult
+    func onUserPromptSubmit(_ handler: @escaping UserPromptSubmitHandler) -> Self {
+        userPromptSubmitHandlers.append(handler)
+        return self
+    }
+
     func handle(_ invocation: CodexHookInvocation) throws -> CodexHookResponse? {
         switch invocation {
         case .sessionStart(let context):
@@ -54,6 +62,8 @@ final class CodexHookRegistry {
             return try reduceResponses(from: preToolUseHandlers, with: context)
         case .postToolUse(let context):
             return try reduceResponses(from: postToolUseHandlers, with: context)
+        case .userPromptSubmit(let context):
+            return try reduceResponses(from: userPromptSubmitHandlers, with: context)
         case .stop(let context):
             return try reduceResponses(from: sessionEndHandlers, with: context)
         }

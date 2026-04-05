@@ -12,6 +12,7 @@ struct CodexHookRegistryTests {
           "cwd": "/tmp/workspace",
           "hook_event_name": "SessionStart",
           "model": "gpt-5.4",
+          "permission_mode": "default",
           "source": "startup"
         }
         """.data(using: .utf8)!
@@ -36,6 +37,7 @@ struct CodexHookRegistryTests {
           "cwd": "/tmp/workspace",
           "hook_event_name": "PreToolUse",
           "model": "gpt-5.4",
+          "permission_mode": "default",
           "turn_id": "turn-1",
           "tool_name": "Bash",
           "tool_use_id": "tool-1",
@@ -66,6 +68,7 @@ struct CodexHookRegistryTests {
           "cwd": "/tmp/workspace",
           "hook_event_name": "PostToolUse",
           "model": "gpt-5.4",
+          "permission_mode": "default",
           "turn_id": "turn-1",
           "tool_name": "Bash",
           "tool_use_id": "tool-1",
@@ -105,6 +108,7 @@ struct CodexHookRegistryTests {
           "cwd": "/tmp/workspace",
           "hook_event_name": "Stop",
           "model": "gpt-5.4",
+          "permission_mode": "default",
           "turn_id": "turn-1",
           "stop_hook_active": false,
           "last_assistant_message": "All tests passed."
@@ -152,6 +156,7 @@ struct CodexHookRegistryTests {
           "cwd": "/tmp/Active Session",
           "hook_event_name": "SessionStart",
           "model": "gpt-5.4",
+          "permission_mode": "default",
           "source": "startup"
         }
         """.data(using: .utf8)!
@@ -163,6 +168,7 @@ struct CodexHookRegistryTests {
           "cwd": "/tmp/Idle Session",
           "hook_event_name": "Stop",
           "model": "gpt-5.4",
+          "permission_mode": "default",
           "turn_id": "turn-1",
           "stop_hook_active": false,
           "last_assistant_message": "Finished."
@@ -179,5 +185,43 @@ struct CodexHookRegistryTests {
         #expect(sessions[0].state == .completed)
         #expect(sessions[1].title == "Active Session")
         #expect(sessions[1].state == .running)
+    }
+
+    @Test func userPromptSubmitCanBeBlockedAndPersisted() throws {
+        let storeURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+            .appendingPathComponent("hook-sessions.json")
+
+        let input = """
+        {
+          "session_id": "session-1",
+          "transcript_path": "/tmp/transcript.jsonl",
+          "cwd": "/tmp/workspace",
+          "hook_event_name": "UserPromptSubmit",
+          "model": "gpt-5.4",
+          "permission_mode": "plan",
+          "turn_id": "turn-1",
+          "prompt": "Refactor the helper/app bridge."
+        }
+        """.data(using: .utf8)!
+
+        let registry = CodexHookRegistry(
+            sessionStore: CodexSessionStore(storeURL: storeURL)
+        )
+            .onUserPromptSubmit { context in
+                #expect(context.prompt == "Refactor the helper/app bridge.")
+                return .blockUserPrompt(
+                    reason: "Need a smaller scope first.",
+                    additionalContext: "Split transport and UI."
+                )
+            }
+
+        let response = try registry.handle(input: input)
+        let sessions = try CodexSessionStore(storeURL: storeURL).recentSessions(limit: 1)
+
+        #expect(response?.decision == .block)
+        #expect(response?.reason == "Need a smaller scope first.")
+        #expect(response?.hookSpecificOutput?.hookEventName == .userPromptSubmit)
+        #expect(sessions.first?.lastUserPrompt == "Refactor the helper/app bridge.")
     }
 }

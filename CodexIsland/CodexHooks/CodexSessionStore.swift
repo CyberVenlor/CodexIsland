@@ -9,6 +9,7 @@ struct CodexRecentSession: Identifiable, Equatable {
     let model: String
     let transcriptPath: String?
     let lastEvent: String?
+    let lastUserPrompt: String?
     let lastAssistantMessage: String?
     let toolName: String?
     let toolUseID: String?
@@ -84,6 +85,7 @@ struct CodexSessionStore {
                     model: $0.model,
                     transcriptPath: $0.transcriptPath,
                     lastEvent: $0.lastEvent,
+                    lastUserPrompt: $0.lastUserPrompt,
                     lastAssistantMessage: $0.lastAssistantMessage,
                     toolName: $0.toolName,
                     toolUseID: $0.toolUseID,
@@ -98,8 +100,7 @@ struct CodexSessionStore {
     }
 
     func record(_ invocation: CodexHookInvocation) throws {
-        let update = SessionRecord(invocation: invocation, updatedAt: now)
-        try persist(update)
+        try persist(SessionRecord(invocation: invocation, updatedAt: now))
     }
 
     func recordPayloadData(_ data: Data) throws {
@@ -191,6 +192,7 @@ private struct HookSessionEntry: Codable, Equatable {
     var cwd: String
     var model: String
     var lastEvent: String?
+    var lastUserPrompt: String?
     var lastAssistantMessage: String?
     var toolName: String?
     var toolUseID: String?
@@ -207,6 +209,7 @@ private struct HookSessionEntry: Codable, Equatable {
         case cwd
         case model
         case lastEvent
+        case lastUserPrompt
         case lastAssistantMessage
         case toolName
         case toolUseID
@@ -224,6 +227,7 @@ private struct HookSessionEntry: Codable, Equatable {
         cwd = record.cwd
         model = record.model
         lastEvent = record.lastEvent
+        lastUserPrompt = record.lastUserPrompt
         lastAssistantMessage = record.lastAssistantMessage
         toolName = record.toolName
         toolUseID = record.toolUseID
@@ -242,6 +246,7 @@ private struct HookSessionEntry: Codable, Equatable {
         cwd = try container.decodeIfPresent(String.self, forKey: .cwd) ?? transcriptPath ?? "unknown"
         model = try container.decodeIfPresent(String.self, forKey: .model) ?? "unknown"
         lastEvent = try container.decodeIfPresent(String.self, forKey: .lastEvent)
+        lastUserPrompt = try container.decodeIfPresent(String.self, forKey: .lastUserPrompt)
         lastAssistantMessage = try container.decodeIfPresent(String.self, forKey: .lastAssistantMessage)
         toolName = try container.decodeIfPresent(String.self, forKey: .toolName)
         toolUseID = try container.decodeIfPresent(String.self, forKey: .toolUseID)
@@ -271,6 +276,7 @@ private struct HookSessionEntry: Codable, Equatable {
         cwd = record.cwd
         model = record.model == "unknown" ? model : record.model
         lastEvent = record.lastEvent
+        lastUserPrompt = record.lastUserPrompt ?? lastUserPrompt
         lastAssistantMessage = record.lastAssistantMessage ?? lastAssistantMessage
         toolName = record.toolName ?? toolName
         toolUseID = record.toolUseID ?? toolUseID
@@ -289,6 +295,7 @@ private struct SessionRecord {
     let cwd: String
     let model: String
     let lastEvent: String?
+    let lastUserPrompt: String?
     let lastAssistantMessage: String?
     let toolName: String?
     let toolUseID: String?
@@ -307,6 +314,7 @@ private struct SessionRecord {
             cwd = context.cwd
             model = context.model
             lastEvent = context.hookEventName.rawValue
+            lastUserPrompt = nil
             lastAssistantMessage = nil
             toolName = nil
             toolUseID = nil
@@ -322,6 +330,7 @@ private struct SessionRecord {
             cwd = context.cwd
             model = context.model
             lastEvent = context.hookEventName.rawValue
+            lastUserPrompt = nil
             lastAssistantMessage = nil
             toolName = context.toolName.displayName
             toolUseID = context.toolUseID
@@ -337,10 +346,27 @@ private struct SessionRecord {
             cwd = context.cwd
             model = context.model
             lastEvent = context.hookEventName.rawValue
+            lastUserPrompt = nil
             lastAssistantMessage = nil
             toolName = context.toolName.displayName
             toolUseID = context.toolUseID
             toolCommand = context.toolInput.command
+            requiresApproval = false
+            approvalStatus = nil
+        case .userPromptSubmit(let context):
+            id = context.sessionID
+            title = Self.makeTitle(from: context.cwd)
+            self.updatedAt = updatedAt
+            state = "running"
+            transcriptPath = context.transcriptPath
+            cwd = context.cwd
+            model = context.model
+            lastEvent = context.hookEventName.rawValue
+            lastUserPrompt = context.prompt
+            lastAssistantMessage = nil
+            toolName = nil
+            toolUseID = nil
+            toolCommand = nil
             requiresApproval = false
             approvalStatus = nil
         case .stop(let context):
@@ -352,6 +378,7 @@ private struct SessionRecord {
             cwd = context.cwd
             model = context.model
             lastEvent = context.hookEventName.rawValue
+            lastUserPrompt = nil
             lastAssistantMessage = context.lastAssistantMessage
             toolName = nil
             toolUseID = nil
@@ -370,6 +397,7 @@ private struct SessionRecord {
         cwd = bridgePayload.cwd ?? transcriptPath ?? "unknown"
         model = bridgePayload.model ?? "unknown"
         lastEvent = bridgePayload.event ?? bridgePayload.codexEventType
+        lastUserPrompt = bridgePayload.prompt
         lastAssistantMessage = bridgePayload.lastAssistantMessage ?? bridgePayload.codexLastAssistantMessage
         toolName = bridgePayload.toolName
         toolUseID = bridgePayload.toolUseID
@@ -423,6 +451,7 @@ private struct CodexBridgePayload: Decodable {
     let stopHookActive: Bool?
     let lastAssistantMessage: String?
     let codexLastAssistantMessage: String?
+    let prompt: String?
     let toolName: String?
     let toolUseID: String?
     let toolInput: BridgeToolInput?
@@ -440,6 +469,7 @@ private struct CodexBridgePayload: Decodable {
         stopHookActive: Bool?,
         lastAssistantMessage: String?,
         codexLastAssistantMessage: String?,
+        prompt: String?,
         toolName: String?,
         toolUseID: String?,
         toolInput: BridgeToolInput?,
@@ -456,6 +486,7 @@ private struct CodexBridgePayload: Decodable {
         self.stopHookActive = stopHookActive
         self.lastAssistantMessage = lastAssistantMessage
         self.codexLastAssistantMessage = codexLastAssistantMessage
+        self.prompt = prompt
         self.toolName = toolName
         self.toolUseID = toolUseID
         self.toolInput = toolInput
@@ -481,6 +512,7 @@ private struct CodexBridgePayload: Decodable {
         stopHookActive = try container.decodeIfPresent(Bool.self, forKey: .stopHookActive)
         lastAssistantMessage = try container.decodeIfPresent(String.self, forKey: .lastAssistantMessage)
         codexLastAssistantMessage = try container.decodeIfPresent(String.self, forKey: .codexLastAssistantMessage)
+        prompt = try container.decodeIfPresent(String.self, forKey: .prompt)
         toolName = try container.decodeIfPresent(String.self, forKey: .toolName)
         toolUseID = try container.decodeIfPresent(String.self, forKey: .toolUseID)
         toolInput = try container.decodeIfPresent(BridgeToolInput.self, forKey: .toolInput)
@@ -499,6 +531,7 @@ private struct CodexBridgePayload: Decodable {
         stopHookActive = dictionary["stop_hook_active"] as? Bool
         lastAssistantMessage = dictionary["last_assistant_message"] as? String
         codexLastAssistantMessage = dictionary["codex_last_assistant_message"] as? String
+        prompt = dictionary["prompt"] as? String
         toolName = dictionary["tool_name"] as? String
         toolUseID = dictionary["tool_use_id"] as? String
         toolInput = BridgeToolInput(dictionary: dictionary["tool_input"] as? [String: Any])
@@ -524,6 +557,7 @@ private struct CodexBridgePayload: Decodable {
         case stopHookActive = "stop_hook_active"
         case lastAssistantMessage = "last_assistant_message"
         case codexLastAssistantMessage = "codex_last_assistant_message"
+        case prompt
         case toolName = "tool_name"
         case toolUseID = "tool_use_id"
         case toolInput = "tool_input"

@@ -8,11 +8,11 @@
 import SwiftUI
 
 struct ContentView: View {
-    @EnvironmentObject private var bridgeServer: CodexBridgeServer
+    @EnvironmentObject private var sessionController: CodexSessionController
 
     var body: some View {
         NavigationStack {
-            List(bridgeServer.sessions) { session in
+            List(sessionController.sessions) { session in
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
                         Text(session.title)
@@ -68,12 +68,12 @@ struct ContentView: View {
                             if session.requiresApproval {
                                 HStack {
                                     Button("Approve") {
-                                        bridgeServer.approve(session)
+                                        sessionController.approve(session)
                                     }
                                     .buttonStyle(.borderedProminent)
 
                                     Button("Deny") {
-                                        bridgeServer.deny(session)
+                                        sessionController.deny(session)
                                     }
                                     .buttonStyle(.bordered)
                                 }
@@ -85,6 +85,13 @@ struct ContentView: View {
                         }
                         .padding(8)
                         .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+                    }
+
+                    if let lastUserPrompt = session.lastUserPrompt, !lastUserPrompt.isEmpty {
+                        Text(lastUserPrompt)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
                     }
 
                     if let transcriptPath = session.transcriptPath {
@@ -109,15 +116,15 @@ struct ContentView: View {
                 .padding(.vertical, 4)
             }
             .overlay {
-                if bridgeServer.sessions.isEmpty {
+                if sessionController.sessions.isEmpty {
                     ContentUnavailableView(
-                        "No Live Codex Sessions",
+                        "No Codex Sessions",
                         systemImage: "bolt.slash",
-                        description: Text("Only sessions received after this app launch are tracked.")
+                        description: Text("Launch CodexIsland before running Codex so the helper can forward hooks here.")
                     )
                 }
             }
-            .navigationTitle("Recent Codex Sessions")
+            .navigationTitle("Codex Sessions")
         }
     }
 
@@ -138,6 +145,6 @@ struct ContentView: View {
 struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
         ContentView()
-            .environmentObject(CodexBridgeServer())
+            .environmentObject(CodexSessionController())
     }
 }

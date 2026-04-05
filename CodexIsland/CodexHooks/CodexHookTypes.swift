@@ -4,12 +4,14 @@ enum CodexHookEventName: String, Codable, CaseIterable {
     case sessionStart = "SessionStart"
     case preToolUse = "PreToolUse"
     case postToolUse = "PostToolUse"
+    case userPromptSubmit = "UserPromptSubmit"
     case stop = "Stop"
 }
 
 enum CodexSessionStartSource: Codable, Equatable {
     case startup
     case resume
+    case clear
     case other(String)
 
     init(from decoder: Decoder) throws {
@@ -21,6 +23,8 @@ enum CodexSessionStartSource: Codable, Equatable {
             self = .startup
         case "resume":
             self = .resume
+        case "clear":
+            self = .clear
         default:
             self = .other(value)
         }
@@ -34,6 +38,56 @@ enum CodexSessionStartSource: Codable, Equatable {
             try container.encode("startup")
         case .resume:
             try container.encode("resume")
+        case .clear:
+            try container.encode("clear")
+        case .other(let value):
+            try container.encode(value)
+        }
+    }
+}
+
+enum CodexPermissionMode: Codable, Equatable {
+    case `default`
+    case acceptEdits
+    case plan
+    case dontAsk
+    case bypassPermissions
+    case other(String)
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let value = try container.decode(String.self)
+
+        switch value {
+        case "default":
+            self = .default
+        case "acceptEdits":
+            self = .acceptEdits
+        case "plan":
+            self = .plan
+        case "dontAsk":
+            self = .dontAsk
+        case "bypassPermissions":
+            self = .bypassPermissions
+        default:
+            self = .other(value)
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+
+        switch self {
+        case .default:
+            try container.encode("default")
+        case .acceptEdits:
+            try container.encode("acceptEdits")
+        case .plan:
+            try container.encode("plan")
+        case .dontAsk:
+            try container.encode("dontAsk")
+        case .bypassPermissions:
+            try container.encode("bypassPermissions")
         case .other(let value):
             try container.encode(value)
         }
@@ -145,6 +199,7 @@ struct CodexSessionStartContext: Codable, Equatable, CodexHookContext {
     let cwd: String
     let hookEventName: CodexHookEventName
     let model: String
+    let permissionMode: CodexPermissionMode?
     let source: CodexSessionStartSource
 
     private enum CodingKeys: String, CodingKey {
@@ -153,6 +208,7 @@ struct CodexSessionStartContext: Codable, Equatable, CodexHookContext {
         case cwd
         case hookEventName = "hook_event_name"
         case model
+        case permissionMode = "permission_mode"
         case source
     }
 }
@@ -163,6 +219,7 @@ struct CodexPreToolUseContext: Codable, Equatable, CodexHookContext {
     let cwd: String
     let hookEventName: CodexHookEventName
     let model: String
+    let permissionMode: CodexPermissionMode?
     let turnID: String
     let toolName: CodexToolName
     let toolUseID: String
@@ -174,6 +231,7 @@ struct CodexPreToolUseContext: Codable, Equatable, CodexHookContext {
         case cwd
         case hookEventName = "hook_event_name"
         case model
+        case permissionMode = "permission_mode"
         case turnID = "turn_id"
         case toolName = "tool_name"
         case toolUseID = "tool_use_id"
@@ -187,6 +245,7 @@ struct CodexPostToolUseContext: Codable, Equatable, CodexHookContext {
     let cwd: String
     let hookEventName: CodexHookEventName
     let model: String
+    let permissionMode: CodexPermissionMode?
     let turnID: String
     let toolName: CodexToolName
     let toolUseID: String
@@ -199,11 +258,34 @@ struct CodexPostToolUseContext: Codable, Equatable, CodexHookContext {
         case cwd
         case hookEventName = "hook_event_name"
         case model
+        case permissionMode = "permission_mode"
         case turnID = "turn_id"
         case toolName = "tool_name"
         case toolUseID = "tool_use_id"
         case toolInput = "tool_input"
         case toolResponse = "tool_response"
+    }
+}
+
+struct CodexUserPromptSubmitContext: Codable, Equatable, CodexHookContext {
+    let sessionID: String
+    let transcriptPath: String?
+    let cwd: String
+    let hookEventName: CodexHookEventName
+    let model: String
+    let permissionMode: CodexPermissionMode?
+    let turnID: String
+    let prompt: String
+
+    private enum CodingKeys: String, CodingKey {
+        case sessionID = "session_id"
+        case transcriptPath = "transcript_path"
+        case cwd
+        case hookEventName = "hook_event_name"
+        case model
+        case permissionMode = "permission_mode"
+        case turnID = "turn_id"
+        case prompt
     }
 }
 
@@ -213,6 +295,7 @@ struct CodexStopContext: Codable, Equatable, CodexHookContext {
     let cwd: String
     let hookEventName: CodexHookEventName
     let model: String
+    let permissionMode: CodexPermissionMode?
     let turnID: String
     let stopHookActive: Bool
     let lastAssistantMessage: String?
@@ -223,6 +306,7 @@ struct CodexStopContext: Codable, Equatable, CodexHookContext {
         case cwd
         case hookEventName = "hook_event_name"
         case model
+        case permissionMode = "permission_mode"
         case turnID = "turn_id"
         case stopHookActive = "stop_hook_active"
         case lastAssistantMessage = "last_assistant_message"
@@ -233,6 +317,7 @@ enum CodexHookInvocation: Equatable {
     case sessionStart(CodexSessionStartContext)
     case preToolUse(CodexPreToolUseContext)
     case postToolUse(CodexPostToolUseContext)
+    case userPromptSubmit(CodexUserPromptSubmitContext)
     case stop(CodexStopContext)
 
     var hookEventName: CodexHookEventName {
@@ -243,6 +328,8 @@ enum CodexHookInvocation: Equatable {
             return .preToolUse
         case .postToolUse:
             return .postToolUse
+        case .userPromptSubmit:
+            return .userPromptSubmit
         case .stop:
             return .stop
         }
@@ -258,6 +345,8 @@ enum CodexHookInvocation: Equatable {
             return .preToolUse(try decoder.decode(CodexPreToolUseContext.self, from: data))
         case .postToolUse:
             return .postToolUse(try decoder.decode(CodexPostToolUseContext.self, from: data))
+        case .userPromptSubmit:
+            return .userPromptSubmit(try decoder.decode(CodexUserPromptSubmitContext.self, from: data))
         case .stop:
             return .stop(try decoder.decode(CodexStopContext.self, from: data))
         }
@@ -352,7 +441,24 @@ struct CodexHookResponse: Codable, Equatable {
         )
     }
 
-    // Codex exposes session-end style continuation through the Stop hook.
+    static func blockUserPrompt(
+        reason: String,
+        additionalContext: String? = nil,
+        systemMessage: String? = nil
+    ) -> Self {
+        Self(
+            systemMessage: systemMessage,
+            decision: .block,
+            reason: reason,
+            hookSpecificOutput: CodexHookSpecificOutput(
+                hookEventName: .userPromptSubmit,
+                additionalContext: additionalContext,
+                permissionDecision: nil,
+                permissionDecisionReason: nil
+            )
+        )
+    }
+
     static func sessionEndContinue(reason: String, systemMessage: String? = nil) -> Self {
         Self(
             systemMessage: systemMessage,
