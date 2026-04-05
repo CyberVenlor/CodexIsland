@@ -45,21 +45,32 @@ final class CodexSessionController: ObservableObject {
     }
 
     func approve(_ session: CodexRecentSession) {
-        resolve(session, response: nil, approvalStatus: "approved")
+        resolve(
+            session,
+            relayResponse: .approve,
+            approvalStatus: "approved"
+        )
     }
 
     func deny(_ session: CodexRecentSession) {
         do {
-            let response = try JSONEncoder().encode(
-                CodexHookResponse.denyToolUse(reason: "Denied from CodexIsland")
+            resolve(
+                session,
+                relayResponse: .deny(
+                    CodexHookResponse.denyToolUse(reason: "Denied from CodexIsland")
+                ),
+                approvalStatus: "denied"
             )
-            resolve(session, response: response, approvalStatus: "denied")
         } catch {
             debugLogger.log("failed to encode deny response for \(session.id): \(error.localizedDescription)")
         }
     }
 
-    private func resolve(_ session: CodexRecentSession, response: Data?, approvalStatus: String) {
+    private func resolve(
+        _ session: CodexRecentSession,
+        relayResponse: CodexHookRelayResponse,
+        approvalStatus: String
+    ) {
         guard
             let key = approvalKey(for: session),
             let client = pendingApprovalClients.removeValue(forKey: key)
@@ -68,15 +79,12 @@ final class CodexSessionController: ObservableObject {
             return
         }
 
-        if let response {
-            do {
-                try FileHandle(fileDescriptor: client, closeOnDealloc: false).write(contentsOf: response)
-                debugLogger.log("wrote deny response for \(key)")
-            } catch {
-                debugLogger.log("failed to write response for \(key): \(error.localizedDescription)")
-            }
-        } else {
-            debugLogger.log("approved tool use for \(key) without emitting hook output")
+        do {
+            let data = try JSONEncoder().encode(relayResponse)
+            try FileHandle(fileDescriptor: client, closeOnDealloc: false).write(contentsOf: data)
+            debugLogger.log("wrote relay response for \(key) decision=\(relayResponse.decision.rawValue)")
+        } catch {
+            debugLogger.log("failed to write relay response for \(key): \(error.localizedDescription)")
         }
 
         close(client)
@@ -117,6 +125,22 @@ final class CodexSessionController: ObservableObject {
         }
 
         return "\(session.id)::\(toolUseID)"
+    }
+}
+
+private struct CodexHookRelayResponse: Codable {
+    let decision: RelayDecision
+    let hookResponse: CodexHookResponse?
+
+    enum RelayDecision: String, Codable {
+        case approve
+        case deny
+    }
+
+    static let approve = CodexHookRelayResponse(decision: .approve, hookResponse: nil)
+
+    static func deny(_ hookResponse: CodexHookResponse) -> CodexHookRelayResponse {
+        CodexHookRelayResponse(decision: .deny, hookResponse: hookResponse)
     }
 }
 
