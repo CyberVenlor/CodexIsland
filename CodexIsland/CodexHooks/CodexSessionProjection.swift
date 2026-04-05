@@ -77,6 +77,7 @@ enum CodexSessionProjection {
                 approvalStatus: nil
             )
         case .preToolUse(let context):
+            let requiresApproval = CodexCommandApprovalMatcher.requiresApproval(for: context)
             return CodexRecentSession(
                 id: toolEventID(sessionID: context.sessionID, toolUseID: context.toolUseID),
                 sessionID: context.sessionID,
@@ -92,8 +93,8 @@ enum CodexSessionProjection {
                 toolName: context.toolName.displayName,
                 toolUseID: context.toolUseID,
                 toolCommand: context.toolInput.command,
-                requiresApproval: true,
-                approvalStatus: "pending"
+                requiresApproval: requiresApproval,
+                approvalStatus: requiresApproval ? "pending" : nil
             )
         case .postToolUse(let context):
             return CodexRecentSession(

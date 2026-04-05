@@ -359,7 +359,8 @@ private struct PendingApproval {
     static func decode(from data: Data) -> PendingApproval? {
         guard
             let invocation = try? CodexHookInvocation.decode(from: data),
-            case .preToolUse(let context) = invocation
+            case .preToolUse(let context) = invocation,
+            CodexCommandApprovalMatcher.requiresApproval(for: context)
         else {
             return nil
         }
