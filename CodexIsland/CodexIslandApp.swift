@@ -3,11 +3,14 @@ import SwiftUI
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    private let overlayController = IslandOverlayController()
+    private let sessionController = CodexSessionController()
+    private lazy var overlayController = IslandOverlayController(sessionController: sessionController)
+    private lazy var relayServer = CodexHookRelayServer(sessionController: sessionController)
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         overlayController.start()
+        relayServer.start()
     }
 }
 

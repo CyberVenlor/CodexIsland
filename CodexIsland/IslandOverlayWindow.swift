@@ -67,8 +67,14 @@ final class TransparentHostingView<Content: View>: NSHostingView<Content> {
 @MainActor
 final class IslandOverlayController: NSObject {
     private let islandController = IslandController()
+    private let sessionController: CodexSessionController
     private var panel: IslandPanel?
     private var cancellables: Set<AnyCancellable> = []
+
+    init(sessionController: CodexSessionController) {
+        self.sessionController = sessionController
+        super.init()
+    }
 
     func start() {
         guard panel == nil else { return }
@@ -97,7 +103,10 @@ final class IslandOverlayController: NSObject {
 
     private func makeContentView() -> NSView {
         let containerView = TransparentContainerView(frame: .zero)
-        let hostingView = TransparentHostingView(rootView: ContentView(controller: islandController))
+        let hostingView = TransparentHostingView(
+            rootView: ContentView(controller: islandController)
+                .environmentObject(sessionController)
+        )
         hostingView.translatesAutoresizingMaskIntoConstraints = false
         containerView.addSubview(hostingView)
 

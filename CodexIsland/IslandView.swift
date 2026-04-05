@@ -2,6 +2,7 @@ import SwiftUI
 
 struct IslandView: View {
     @ObservedObject var controller: IslandController
+    @EnvironmentObject private var sessionController: CodexSessionController
     private let shellStrokeWidth: CGFloat = 1.2
 
     private var state: IslandPresentationState {
@@ -73,14 +74,14 @@ struct IslandView: View {
     private var content: some View {
         IslandContentView(
             state: state,
-            items: controller.items
+            sessionController: sessionController
         )
     }
 }
 
 struct IslandContentView: View {
     let state: IslandPresentationState
-    let items: [IslandListItem]
+    @ObservedObject var sessionController: CodexSessionController
 
     private let detailedSize = IslandShellStyle.forState(.collapsed(.detailed)).size
     private let expandedSize = IslandShellStyle.forState(.expanded).size
@@ -149,25 +150,215 @@ struct IslandContentView: View {
 
     @ViewBuilder
     private var expandedDetails: some View {
-        let additionalItems = Array(items.dropFirst())
+        CodexHooksExpandedPanel(sessionController: sessionController)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+}
 
-        VStack(alignment: .leading, spacing: 0) {
-            Divider()
-                .overlay(.white.opacity(0.08))
-                .padding(.top, 14)
-                .padding(.bottom, 12)
+struct CodexHooksExpandedPanel: View {
+    @ObservedObject var sessionController: CodexSessionController
 
-            ForEach(Array(additionalItems.enumerated()), id: \.element.id) { index, item in
-                IslandListRow(item: item)
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            header
 
-                if index < additionalItems.count - 1 {
-                    Divider()
-                        .overlay(.white.opacity(0.08))
-                        .padding(.vertical, 8)
+            if sessionController.sessions.isEmpty {
+                emptyState
+            } else {
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 10) {
+                        ForEach(sessionController.sessions) { session in
+                            SessionCard(session: session, sessionController: sessionController)
+                        }
+                    }
+                    .padding(.bottom, 2)
+                }
+                .scrollIndicators(.hidden)
+            }
+        }
+    }
+
+    private var header: some View {
+        HStack(alignment: .firstTextBaseline) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Codex Hooks")
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(.white)
+
+                Text("\(sessionController.sessions.count) active session\(sessionController.sessions.count == 1 ? "" : "s")")
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.56))
+            }
+
+            Spacer()
+
+            Image(systemName: "bolt.horizontal.circle.fill")
+                .font(.title3)
+                .foregroundStyle(.white.opacity(0.78))
+        }
+    }
+
+    private var emptyState: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("No Codex sessions")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.white)
+
+            Text("Sessions appear here after the helper relay receives hook events.")
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.62))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+}
+
+private struct SessionCard: View {
+    let session: CodexSessionGroup
+    @ObservedObject var sessionController: CodexSessionController
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 8) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(session.title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .lineLimit(2)
+
+                    Text(session.projectName)
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.56))
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 8)
+
+                SessionStateBadge(state: session.state)
+            }
+
+            if let prompt = session.lastUserPrompt, !prompt.isEmpty {
+                SessionExcerpt(label: "Prompt", text: prompt)
+            }
+
+            if let message = session.lastAssistantMessage, !message.isEmpty {
+                SessionExcerpt(label: "Reply", text: message)
+            }
+
+            ForEach(session.toolCalls) { toolCall in
+                ToolCallCard(toolCall: toolCall, sessionController: sessionController)
+            }
+
+            Text(session.updatedAt.formatted(date: .omitted, time: .shortened))
+                .font(.caption2.monospacedDigit())
+                .foregroundStyle(.white.opacity(0.42))
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+}
+
+private struct ToolCallCard: View {
+    let toolCall: CodexToolCall
+    @ObservedObject var sessionController: CodexSessionController
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(toolCall.toolName ?? toolCall.toolUseID ?? "Tool")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.white)
+
+                Spacer()
+
+                if let approvalStatus = toolCall.approvalStatus {
+                    Text(approvalStatus)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(toolCall.requiresApproval ? .black : .white.opacity(0.82))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(
+                            toolCall.requiresApproval ? Color.yellow : Color.white.opacity(0.12),
+                            in: Capsule()
+                        )
+                }
+            }
+
+            if let command = toolCall.toolCommand {
+                Text(command)
+                    .font(.caption2.monospaced())
+                    .foregroundStyle(.white.opacity(0.72))
+                    .textSelection(.enabled)
+                    .lineLimit(3)
+            }
+
+            if toolCall.requiresApproval {
+                HStack(spacing: 8) {
+                    Button("Approve") {
+                        sessionController.approve(toolCall)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .tint(.green)
+
+                    Button("Deny") {
+                        sessionController.deny(toolCall)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .tint(.white.opacity(0.8))
                 }
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .padding(10)
+        .background(.black.opacity(0.22), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+}
+
+private struct SessionExcerpt: View {
+    let label: String
+    let text: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.46))
+
+            Text(text)
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.76))
+                .lineLimit(2)
+        }
+    }
+}
+
+private struct SessionStateBadge: View {
+    let state: CodexSessionState
+
+    var body: some View {
+        Text(state.displayName)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(color)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(color.opacity(0.16), in: Capsule())
+    }
+
+    private var color: Color {
+        switch state {
+        case .running:
+            return .green
+        case .idle:
+            return .orange
+        case .completed:
+            return .blue
+        case .unknown:
+            return .gray
+        }
     }
 }
 
