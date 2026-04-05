@@ -15,7 +15,7 @@ struct IslandShellStyle: Equatable {
                 size: CGSize(width: 230, height: 32),
                 topRadius: 6,
                 bottomRadius: 12,
-                backgroundOpacity: 0.98,
+                backgroundOpacity: 1.0,
                 strokeOpacity: 0.18,
                 shadowOpacity: 0.20
             )
@@ -24,23 +24,23 @@ struct IslandShellStyle: Equatable {
                 size: CGSize(width: 208, height: 32),
                 topRadius: 14,
                 bottomRadius: 20,
-                backgroundOpacity: 0.05,
+                backgroundOpacity: 1.0,
                 strokeOpacity: 0.72,
                 shadowOpacity: 0.10
             )
         case .expanded:
             IslandShellStyle(
-                size: CGSize(width: 336, height: 248),
+                size: CGSize(width: 420, height: 480),
                 topRadius: 8,
                 bottomRadius: 20,
-                backgroundOpacity: 0.98,
+                backgroundOpacity: 1.0,
                 strokeOpacity: 0.12,
                 shadowOpacity: 0.26
             )
         }
     }
 
-    static let maximumSize = CGSize(width: 336, height: 248)
+    static let maximumSize = CGSize(width: 480, height: 640)
     static let overshootWidth: CGFloat = 32
     static let overshootHeight: CGFloat = 36
     static let minimumBottomY: CGFloat = 32
