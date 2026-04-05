@@ -6,23 +6,31 @@ import Foundation
 final class CodexSessionController: ObservableObject {
     @Published private(set) var sessions: [CodexRecentSession] = []
 
-    private let sessionStore: CodexSessionStore
+    private let persistence: CodexSessionPersisting
     private let debugLogger: CodexHookDebugLogger
+    private let launchedAt: Date
     private var pendingApprovalClients: [String: Int32] = [:]
+    private var sessionIndex: [String: CodexRecentSession] = [:]
 
     init(
-        sessionStore: CodexSessionStore = CodexSessionStore(),
-        debugLogger: CodexHookDebugLogger = CodexHookDebugLogger()
+        persistence: CodexSessionPersisting = NoOpCodexSessionPersistence(),
+        debugLogger: CodexHookDebugLogger = .disabled,
+        launchedAt: Date = Date()
     ) {
-        self.sessionStore = sessionStore
+        self.persistence = persistence
         self.debugLogger = debugLogger
-        reloadSessions()
+        self.launchedAt = launchedAt
     }
 
     func handleIncomingPayload(_ data: Data, client: Int32) -> CodexHookRelayServer.PayloadDisposition {
+        if let session = CodexSessionProjection.session(from: data) {
+            upsert(session: session)
+        } else {
+            debugLogger.log("failed to project incoming payload into session")
+        }
+
         do {
-            try sessionStore.recordPayloadData(data)
-            reloadSessions()
+            try persistence.recordPayloadData(data)
         } catch {
             debugLogger.log("failed to record incoming payload: \(error.localizedDescription)")
         }
@@ -75,20 +83,32 @@ final class CodexSessionController: ObservableObject {
 
         if let toolUseID = session.toolUseID {
             do {
-                try sessionStore.updateApproval(sessionID: session.id, toolUseID: toolUseID, status: approvalStatus)
-                reloadSessions()
+                try persistence.updateApproval(sessionID: session.id, toolUseID: toolUseID, status: approvalStatus)
             } catch {
                 debugLogger.log("failed to persist approval status for \(key): \(error.localizedDescription)")
+            }
+
+            if let existing = sessionIndex[session.id] {
+                upsert(session: CodexSessionProjection.approvalUpdated(existing, status: approvalStatus))
             }
         }
     }
 
-    private func reloadSessions() {
-        do {
-            sessions = try sessionStore.recentSessions(limit: 12)
-        } catch {
-            debugLogger.log("failed to reload sessions: \(error.localizedDescription)")
+    private func upsert(session: CodexRecentSession) {
+        guard session.updatedAt >= launchedAt else {
+            return
         }
+
+        if let existing = sessionIndex[session.id] {
+            sessionIndex[session.id] = CodexSessionProjection.merge(existing: existing, update: session)
+        } else {
+            sessionIndex[session.id] = session
+        }
+
+        sessions = sessionIndex.values
+            .sorted { $0.updatedAt > $1.updatedAt }
+            .prefix(12)
+            .map { $0 }
     }
 
     private func approvalKey(for session: CodexRecentSession) -> String? {

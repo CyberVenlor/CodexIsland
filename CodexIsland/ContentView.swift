@@ -120,7 +120,7 @@ struct ContentView: View {
                     ContentUnavailableView(
                         "No Codex Sessions",
                         systemImage: "bolt.slash",
-                        description: Text("Launch CodexIsland before running Codex so the helper can forward hooks here.")
+                        description: Text("Only sessions received after this app launch are tracked.")
                     )
                 }
             }

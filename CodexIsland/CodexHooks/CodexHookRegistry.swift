@@ -12,12 +12,12 @@ final class CodexHookRegistry {
     private var preToolUseHandlers: [PreToolUseHandler] = []
     private var postToolUseHandlers: [PostToolUseHandler] = []
     private var userPromptSubmitHandlers: [UserPromptSubmitHandler] = []
-    private let sessionStore: CodexSessionStore?
+    private let sessionStore: CodexSessionPersisting?
     private let debugLogger: CodexHookDebugLogger
 
     init(
-        sessionStore: CodexSessionStore? = CodexSessionStore(),
-        debugLogger: CodexHookDebugLogger = CodexHookDebugLogger()
+        sessionStore: CodexSessionPersisting? = NoOpCodexSessionPersistence(),
+        debugLogger: CodexHookDebugLogger = .disabled
     ) {
         self.sessionStore = sessionStore
         self.debugLogger = debugLogger
@@ -150,18 +150,33 @@ struct CodexHookDebugLogger {
 
     private let fileManager: FileManager
     private let logURL: URL
+    private let isEnabled: Bool
 
     init(
         logURL: URL = URL(fileURLWithPath: NSHomeDirectory())
             .appendingPathComponent(".codex", isDirectory: true)
             .appendingPathComponent("codex-island-hook-debug.log"),
-        fileManager: FileManager = .default
+        fileManager: FileManager = .default,
+        isEnabled: Bool = true
     ) {
         self.logURL = logURL
         self.fileManager = fileManager
+        self.isEnabled = isEnabled
+    }
+
+    static let disabled = CodexHookDebugLogger(isEnabled: false)
+
+    private init(isEnabled: Bool) {
+        self.logURL = URL(fileURLWithPath: "/dev/null")
+        self.fileManager = .default
+        self.isEnabled = isEnabled
     }
 
     func log(_ message: String) {
+        guard isEnabled else {
+            return
+        }
+
         let timestamp = Self.formatter.string(from: Date())
         let line = "[\(timestamp)] \(message)\n"
 

@@ -122,6 +122,17 @@ enum CodexToolName: Codable, Equatable {
     }
 }
 
+extension CodexToolName {
+    var displayName: String {
+        switch self {
+        case .bash:
+            return "Bash"
+        case .other(let value):
+            return value
+        }
+    }
+}
+
 enum CodexPermissionDecision: String, Codable, Equatable {
     case allow
     case ask

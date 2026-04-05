@@ -25,7 +25,7 @@ final class CodexHookRelayServer {
 
     init(
         socketPath: String = CodexHookRelayDefaults.socketPath,
-        debugLogger: CodexHookDebugLogger = CodexHookDebugLogger(),
+        debugLogger: CodexHookDebugLogger = .disabled,
         payloadHandler: @escaping PayloadHandler
     ) {
         self.socketPath = socketPath
@@ -36,7 +36,7 @@ final class CodexHookRelayServer {
     convenience init(
         sessionController: CodexSessionController,
         socketPath: String = CodexHookRelayDefaults.socketPath,
-        debugLogger: CodexHookDebugLogger = CodexHookDebugLogger()
+        debugLogger: CodexHookDebugLogger = .disabled
     ) {
         self.init(socketPath: socketPath, debugLogger: debugLogger) { data, client in
             sessionController.handleIncomingPayload(data, client: client)

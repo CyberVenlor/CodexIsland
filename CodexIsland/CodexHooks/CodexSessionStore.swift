@@ -38,7 +38,7 @@ enum CodexSessionState: Equatable {
     }
 }
 
-struct CodexSessionStore {
+struct CodexSessionStore: CodexSessionPersisting {
     private static let encoder: JSONEncoder = {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
@@ -580,16 +580,5 @@ private struct BridgeToolInput: Codable {
         }
 
         command = dictionary["command"] as? String
-    }
-}
-
-private extension CodexToolName {
-    var displayName: String {
-        switch self {
-        case .bash:
-            return "Bash"
-        case .other(let value):
-            return value
-        }
     }
 }
