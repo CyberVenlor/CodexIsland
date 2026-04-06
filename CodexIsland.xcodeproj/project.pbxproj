@@ -71,6 +71,32 @@
 		};
 /* End PBXFrameworksBuildPhase section */
 
+/* Begin PBXShellScriptBuildPhase section */
+		D7D6CB032F812B89002869C9 /* Build Rust Approval Matcher */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 0;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/RustApprovalMatcher/Cargo.toml",
+				"$(SRCROOT)/RustApprovalMatcher/src/lib.rs",
+			);
+			name = "Build Rust Approval Matcher";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(SRCROOT)/RustApprovalMatcher/target/debug/libcodex_command_approval_matcher.a",
+				"$(SRCROOT)/RustApprovalMatcher/target/release/libcodex_command_approval_matcher.a",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -e\nexport PATH=\"$HOME/.cargo/bin:$PATH\"\nif [ \"$CONFIGURATION\" = \"Release\" ]; then\n  cargo build --manifest-path \"$SRCROOT/RustApprovalMatcher/Cargo.toml\" --release\nelse\n  cargo build --manifest-path \"$SRCROOT/RustApprovalMatcher/Cargo.toml\"\nfi";
+		};
+/* End PBXShellScriptBuildPhase section */
+
 /* Begin PBXGroup section */
 		D7D6CACC2F812B88002869C9 = {
 			isa = PBXGroup;
@@ -99,6 +125,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = D7D6CAFA2F812B89002869C9 /* Build configuration list for PBXNativeTarget "CodexIsland" */;
 			buildPhases = (
+				D7D6CB032F812B89002869C9 /* Build Rust Approval Matcher */,
 				D7D6CAD12F812B88002869C9 /* Sources */,
 				D7D6CAD22F812B88002869C9 /* Frameworks */,
 				D7D6CAD32F812B88002869C9 /* Resources */,
@@ -398,6 +425,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"CodexIsland/Preview Content\"";
 				DEVELOPMENT_TEAM = 5V22CLHNY9;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -406,7 +434,15 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SRCROOT)/RustApprovalMatcher/target/debug",
+				);
 				MARKETING_VERSION = 1.0;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-lcodex_command_approval_matcher",
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.n3ur0.CodexIsland;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -425,6 +461,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"CodexIsland/Preview Content\"";
 				DEVELOPMENT_TEAM = 5V22CLHNY9;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -433,7 +470,15 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SRCROOT)/RustApprovalMatcher/target/release",
+				);
 				MARKETING_VERSION = 1.0;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-lcodex_command_approval_matcher",
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.n3ur0.CodexIsland;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
