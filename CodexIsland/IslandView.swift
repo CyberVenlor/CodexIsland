@@ -235,6 +235,10 @@ struct IslandContentView: View {
         return String(format: "%02d", count)
     }
 
+    private var collapsedActivityColor: Color {
+        sessionController.runningSessionCount > 0 ? .green : .blue
+    }
+
     var body: some View {
         ZStack(alignment: .top) {
             collapsedContent
@@ -255,12 +259,12 @@ struct IslandContentView: View {
         ZStack {
             Image(systemName: "waveform")
                 .font(.body.weight(.semibold))
-                .foregroundStyle(.white.opacity(0.8))
+                .foregroundStyle(collapsedActivityColor)
                 .frame(width: 24)
                 .offset(x: -100)
 
             Text(collapsedRunningSessionCountText)
-                .foregroundStyle(.white)
+                .foregroundStyle(collapsedActivityColor)
                 .offset(x: 100)
         }
         .padding(.horizontal, 16)
