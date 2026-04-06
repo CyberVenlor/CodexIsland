@@ -458,7 +458,7 @@ final class CodexSessionController: ObservableObject {
     }
 
     private func rescheduleSuspiciousSessionTracking() {
-        let activeSessionIDs = Set(sessionIndex.values.compactMap { session in
+        let activeSessionIDs: Set<String> = Set(sessionIndex.values.compactMap { session in
             guard session.toolUseID == nil, session.state != .completed else {
                 return nil
             }
