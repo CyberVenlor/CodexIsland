@@ -352,6 +352,38 @@ struct CodexIslandTests {
     }
 
     @MainActor
+    @Test func helpFlagCommandDoesNotRequireApproval() async throws {
+        let controller = CodexSessionController(
+            threadNameStore: CodexSessionThreadNameStore(
+                databaseURL: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString),
+                indexURL: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            )
+        )
+
+        let payload = """
+        {
+          "session_id": "session-1",
+          "transcript_path": "/tmp/transcript.jsonl",
+          "cwd": "/tmp/CodexIsland",
+          "hook_event_name": "PreToolUse",
+          "model": "gpt-5.4",
+          "permission_mode": "default",
+          "turn_id": "turn-1",
+          "tool_name": "Bash",
+          "tool_use_id": "tool-1",
+          "tool_input": {
+            "command": "git checkout -h"
+          }
+        }
+        """.data(using: .utf8)!
+
+        let disposition = controller.handleIncomingPayload(payload, client: -1)
+
+        #expect(disposition == .closeClient)
+        #expect(controller.sessions.first?.toolCalls.isEmpty == true)
+    }
+
+    @MainActor
     @Test func destructivePreToolUseCommandStillRequiresApproval() async throws {
         let controller = CodexSessionController(
             threadNameStore: CodexSessionThreadNameStore(

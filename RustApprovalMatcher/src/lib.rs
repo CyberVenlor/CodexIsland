@@ -402,6 +402,10 @@ fn validate_command(tokens: &[String]) -> Option<()> {
 
     let command_tokens = &tokens[command_index..];
 
+    if is_help_command(command_tokens) {
+        return Some(());
+    }
+
     if is_safe_inspection_command(executable, command_tokens) {
         return Some(());
     }
@@ -415,6 +419,10 @@ fn validate_command(tokens: &[String]) -> Option<()> {
     };
 
     safe.then_some(())
+}
+
+fn is_help_command(tokens: &[String]) -> bool {
+    !tokens.is_empty() && tokens.iter().skip(1).any(|token| token == "-h" || token == "--help")
 }
 
 fn shell_operator(chars: &[char], index: usize) -> Option<&'static str> {
