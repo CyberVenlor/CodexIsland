@@ -582,6 +582,7 @@ private struct AnimatedSpriteIcon: View {
     let scale: CGFloat
 
     @State private var playbackState: SpritePlaybackState
+    @State private var renderDate = Date.now
     private let catalog = SpriteAnimationCatalog.shared
 
     init(color: Color, hasRunningSessions: Bool, isVisible: Bool, scale: CGFloat = 1) {
@@ -595,42 +596,89 @@ private struct AnimatedSpriteIcon: View {
     }
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: playbackState.frameDuration(using: catalog))) { timeline in
-            Rectangle()
-                .fill(color)
-                .frame(width: catalog.frameSize.width, height: catalog.frameSize.height)
-                .mask {
-                    if let frame = playbackState.currentFrame(at: timeline.date, using: catalog) {
-                        Image(decorative: frame, scale: 1)
-                            .interpolation(.none)
-                            .resizable()
-                            .frame(width: catalog.frameSize.width, height: catalog.frameSize.height)
-                            .luminanceToAlpha()
-                    }
+        Rectangle()
+            .fill(color)
+            .frame(width: catalog.frameSize.width, height: catalog.frameSize.height)
+            .mask {
+                if let frame = playbackState.currentFrame(at: renderDate, using: catalog) {
+                    Image(decorative: frame, scale: 1)
+                        .interpolation(.none)
+                        .resizable()
+                        .frame(width: catalog.frameSize.width, height: catalog.frameSize.height)
+                        .luminanceToAlpha()
                 }
-                .scaleEffect(catalog.displayScale * scale, anchor: .center)
-                .onAppear {
-                    playbackState.syncDesiredLoop(
-                        hasRunningSessions ? .idle : .sleep,
-                        isVisible: isVisible,
-                        at: timeline.date,
-                        using: catalog
-                    )
-                }
-                .onChange(of: hasRunningSessions) { running in
-                    playbackState.syncDesiredLoop(
-                        running ? .idle : .sleep,
-                        isVisible: isVisible,
-                        at: timeline.date,
-                        using: catalog
-                    )
-                }
-                .onChange(of: isVisible) { visible in
-                    playbackState.handleVisibilityChange(visible, at: timeline.date, using: catalog)
-                }
-                .onChange(of: timeline.date) { _ in
-                    playbackState.tick(at: timeline.date, isVisible: isVisible, using: catalog)
-                }
+            }
+            .scaleEffect(catalog.displayScale * scale, anchor: .center)
+            .onAppear {
+                let now = Date.now
+                renderDate = now
+                playbackState.syncDesiredLoop(
+                    hasRunningSessions ? .idle : .sleep,
+                    isVisible: isVisible,
+                    at: now,
+                    using: catalog
+                )
+            }
+            .onChange(of: hasRunningSessions) { running in
+                playbackState.syncDesiredLoop(
+                    running ? .idle : .sleep,
+                    isVisible: isVisible,
+                    at: renderDate,
+                    using: catalog
+                )
+            }
+            .onChange(of: isVisible) { visible in
+                playbackState.handleVisibilityChange(visible, at: renderDate, using: catalog)
+            }
+            .task {
+                await runPlaybackLoop()
+            }
+    }
+
+    private func runPlaybackLoop() async {
+        let frameDuration = playbackState.frameDuration(using: catalog)
+        let sleepNanoseconds = UInt64(frameDuration * 1_000_000_000)
+
+        while !Task.isCancelled {
+            let now = Date.now
+            await MainActor.run {
+                renderDate = now
+                playbackState.tick(at: now, isVisible: isVisible, using: catalog)
+            }
+
+            try? await Task.sleep(nanoseconds: sleepNanoseconds)
+        }
+    }
+}
+
+private struct ApprovalReasonEditor: View {
+    let placeholder: String
+    @Binding var text: String
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color.white.opacity(0.08))
+
+            if text.isEmpty {
+                Text(placeholder)
+                    .font(.body)
+                    .foregroundStyle(.white.opacity(0.35))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
+                    .allowsHitTesting(false)
+            }
+
+            TextEditor(text: $text)
+                .font(.body)
+                .foregroundStyle(.white.opacity(0.92))
+                .scrollContentBackground(.hidden)
+                .padding(4)
+        }
+        .frame(minHeight: 56, maxHeight: 88)
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(Color.white.opacity(0.14), lineWidth: 1)
         }
     }
 }
@@ -1003,13 +1051,10 @@ private struct ApprovalPanelView: View {
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(.white.opacity(0.7))
 
-                        TextField(
-                            l10n.text("Tell Codex why this tool was blocked", chinese: "告诉 Codex 为什么拦截这个工具"),
-                            text: $denyReason,
-                            axis: .vertical
+                        ApprovalReasonEditor(
+                            placeholder: l10n.text("Tell Codex why this tool was blocked", chinese: "告诉 Codex 为什么拦截这个工具"),
+                            text: $denyReason
                         )
-                        .textFieldStyle(.roundedBorder)
-                        .lineLimit(2...4)
 
                         HStack(spacing: 8) {
                             ApprovalCapsuleButton(
@@ -1154,9 +1199,7 @@ private struct ToolApprovalActionBar: View {
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.white.opacity(0.7))
 
-                    TextField(denyReasonPlaceholder, text: $denyReason, axis: .vertical)
-                        .textFieldStyle(.roundedBorder)
-                        .lineLimit(2...4)
+                    ApprovalReasonEditor(placeholder: denyReasonPlaceholder, text: $denyReason)
 
                     HStack(spacing: 8) {
                         ApprovalCapsuleButton(

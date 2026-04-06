@@ -43,6 +43,11 @@ struct SettingsPanelView: View {
 
     private func sidebarRow(for tab: SettingsTab) -> some View {
         Button {
+            if tab == .quit, selectedTab == .quit {
+                NSApplication.shared.terminate(nil)
+                return
+            }
+
             withAnimation(.easeInOut(duration: 0.16)) {
                 selectedTab = tab
             }
@@ -139,12 +144,10 @@ struct SettingsPanelView: View {
                         .font(.subheadline)
                         .foregroundStyle(.white)
 
-                    TextField(
-                        "60",
+                    SettingsNumberStepper(
                         value: $settingsStore.config.suspiciousSessionTimeout,
-                        format: .number
+                        range: 1...9999
                     )
-                    .textFieldStyle(.roundedBorder)
 
                     Text(l10n.text(
                         "When a running session receives no new event for this many seconds, it switches to Suspicious and shows an expanded island notification.",
@@ -159,12 +162,10 @@ struct SettingsPanelView: View {
                         .font(.subheadline)
                         .foregroundStyle(.white)
 
-                    TextField(
-                        "2",
+                    SettingsNumberStepper(
                         value: $settingsStore.config.completedIslandDisplayDuration,
-                        format: .number
+                        range: 0...9999
                     )
-                    .textFieldStyle(.roundedBorder)
 
                     Text(l10n.text(
                         "How long the completed expanded island stays open. Set 0 to require mouse interaction before dismissing.",
@@ -179,12 +180,10 @@ struct SettingsPanelView: View {
                         .font(.subheadline)
                         .foregroundStyle(.white)
 
-                    TextField(
-                        "2",
+                    SettingsNumberStepper(
                         value: $settingsStore.config.suspiciousIslandDisplayDuration,
-                        format: .number
+                        range: 0...9999
                     )
-                    .textFieldStyle(.roundedBorder)
 
                     Text(l10n.text(
                         "How long the suspicious expanded island stays open. Set 0 to require mouse interaction before dismissing.",
@@ -234,12 +233,10 @@ struct SettingsPanelView: View {
                         .font(.subheadline)
                         .foregroundStyle(.white)
 
-                    TextField(
-                        "300",
+                    SettingsNumberStepper(
                         value: $settingsStore.config.preToolUseTimeout,
-                        format: .number
+                        range: 1...9999
                     )
-                    .textFieldStyle(.roundedBorder)
                     .disabled(!settingsStore.config.hooksEnabled || !settingsStore.config.enablePreToolUseHook)
 
                     Text(l10n.text(
@@ -387,6 +384,49 @@ struct SettingsPanelView: View {
             }
         }
         .animation(.easeInOut(duration: 0.2), value: selectedTab)
+    }
+}
+
+private struct SettingsNumberStepper: View {
+    @Binding var value: Int
+    let range: ClosedRange<Int>
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Button {
+                value = max(range.lowerBound, value - 1)
+            } label: {
+                Image(systemName: "minus")
+                    .font(.system(size: 11, weight: .semibold))
+                    .frame(width: 28, height: 28)
+            }
+            .buttonStyle(.plain)
+            .background(controlBackground, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .disabled(value <= range.lowerBound)
+
+            Text("\(value)")
+                .font(.system(.body, design: .monospaced))
+                .foregroundStyle(.white)
+                .frame(minWidth: 56, alignment: .center)
+
+            Button {
+                value = min(range.upperBound, value + 1)
+            } label: {
+                Image(systemName: "plus")
+                    .font(.system(size: 11, weight: .semibold))
+                    .frame(width: 28, height: 28)
+            }
+            .buttonStyle(.plain)
+            .background(controlBackground, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .disabled(value >= range.upperBound)
+
+            Spacer(minLength: 0)
+        }
+        .foregroundStyle(.white.opacity(0.9))
+    }
+
+    private var controlBackground: Color {
+        Color.white.opacity(0.08)
     }
 }
 
