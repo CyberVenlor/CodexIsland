@@ -97,18 +97,29 @@ struct SettingsPanelView: View {
                 .foregroundStyle(.white.opacity(0.92))
                 .frame(width: 34, height: 34)
                 .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .id("settings-icon-\(selectedTab.rawValue)")
+                .transition(.gaussianBlurText)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(selectedTab.title(in: language))
-                    .font(.title3.weight(.semibold))
-                    .foregroundStyle(.white)
+                ZStack(alignment: .leading) {
+                    Text(selectedTab.title(in: language))
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .id("settings-title-\(selectedTab.rawValue)")
+                        .transition(.gaussianBlurText)
+                }
 
-                Text(selectedTab.subtitle(in: language))
-                    .font(.caption)
-                    .foregroundStyle(.white.opacity(0.52))
+                ZStack(alignment: .leading) {
+                    Text(selectedTab.subtitle(in: language))
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.52))
+                        .id("settings-subtitle-\(selectedTab.rawValue)")
+                        .transition(.gaussianBlurText)
+                }
             }
         }
         .padding(.horizontal, 4)
+        .animation(.easeInOut(duration: 0.2), value: selectedTab)
     }
 
     private var generalView: some View {
@@ -351,18 +362,31 @@ struct SettingsPanelView: View {
 
     @ViewBuilder
     private var activeTabContent: some View {
-        switch selectedTab {
-        case .general:
-            generalView
-        case .personalized:
-            personalizedView
-        case .hooks:
-            hooksView
-        case .about:
-            aboutView
-        case .quit:
-            quitView
+        ZStack {
+            switch selectedTab {
+            case .general:
+                generalView
+                    .id(SettingsTab.general.rawValue)
+                    .transition(.gaussianBlurPanel)
+            case .personalized:
+                personalizedView
+                    .id(SettingsTab.personalized.rawValue)
+                    .transition(.gaussianBlurPanel)
+            case .hooks:
+                hooksView
+                    .id(SettingsTab.hooks.rawValue)
+                    .transition(.gaussianBlurPanel)
+            case .about:
+                aboutView
+                    .id(SettingsTab.about.rawValue)
+                    .transition(.gaussianBlurPanel)
+            case .quit:
+                quitView
+                    .id(SettingsTab.quit.rawValue)
+                    .transition(.gaussianBlurPanel)
+            }
         }
+        .animation(.easeInOut(duration: 0.2), value: selectedTab)
     }
 }
 

@@ -435,19 +435,31 @@ struct IslandContentView: View {
     private var expandedHeader: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(expandedTitle)
-                    .font(.headline)
-                    .foregroundStyle(.white)
-
-                if let subtitle = expandedSubtitle {
-                    Text(subtitle)
-                        .font(.caption)
-                        .foregroundStyle(.white.opacity(0.55))
-                } else if !isSettingsPanelActive {
-                    Text(l10n.trackedSessions(sessionController.sessions.count))
-                        .font(.caption)
-                        .foregroundStyle(.white.opacity(0.55))
+                ZStack(alignment: .leading) {
+                    Text(expandedTitle)
+                        .font(.headline)
+                        .foregroundStyle(.white)
+                        .id(expandedTitle)
+                        .transition(.gaussianBlurText)
                 }
+                .animation(.easeInOut(duration: 0.2), value: expandedTitle)
+
+                ZStack(alignment: .leading) {
+                    if let subtitle = expandedSubtitle {
+                        Text(subtitle)
+                            .font(.caption)
+                            .foregroundStyle(.white.opacity(0.55))
+                            .id("subtitle-\(subtitle)")
+                            .transition(.gaussianBlurText)
+                    } else if !isSettingsPanelActive {
+                        Text(l10n.trackedSessions(sessionController.sessions.count))
+                            .font(.caption)
+                            .foregroundStyle(.white.opacity(0.55))
+                            .id("tracked-\(sessionController.sessions.count)")
+                            .transition(.gaussianBlurText)
+                    }
+                }
+                .animation(.easeInOut(duration: 0.2), value: expandedSubtitleTransitionKey)
             }
 
             Spacer()
@@ -514,29 +526,48 @@ struct IslandContentView: View {
 
     @ViewBuilder
     private var expandedDetails: some View {
-        if controller.activePanel == .settings {
-            SettingsPanelView()
-                .environmentObject(settingsStore)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        } else if controller.activePanel == .sessionSuspicious {
-            SuspiciousSessionPanelView()
-                .environmentObject(sessionController)
-                .environmentObject(settingsStore)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        } else if controller.activePanel == .sessionEnded {
-            SessionEndedPanelView()
-                .environmentObject(sessionController)
-                .environmentObject(settingsStore)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        } else if let status = approvalPanelStatus {
-            ApprovalPanelView(status: status, controller: controller)
-                .environmentObject(sessionController)
-                .environmentObject(settingsStore)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        } else {
-            CodexSessionListView()
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        ZStack {
+            if controller.activePanel == .settings {
+                SettingsPanelView()
+                    .environmentObject(settingsStore)
+                    .id("settings")
+                    .transition(.gaussianBlurPanel)
+            } else if controller.activePanel == .sessionSuspicious {
+                SuspiciousSessionPanelView()
+                    .environmentObject(sessionController)
+                    .environmentObject(settingsStore)
+                    .id("sessionSuspicious")
+                    .transition(.gaussianBlurPanel)
+            } else if controller.activePanel == .sessionEnded {
+                SessionEndedPanelView()
+                    .environmentObject(sessionController)
+                    .environmentObject(settingsStore)
+                    .id("sessionEnded")
+                    .transition(.gaussianBlurPanel)
+            } else if let status = approvalPanelStatus {
+                ApprovalPanelView(status: status, controller: controller)
+                    .environmentObject(sessionController)
+                    .environmentObject(settingsStore)
+                    .id("approval-\(status == .pending ? "pending" : "completed")")
+                    .transition(.gaussianBlurPanel)
+            } else {
+                CodexSessionListView()
+                    .id("sessions")
+                    .transition(.gaussianBlurPanel)
+            }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .animation(.easeInOut(duration: 0.2), value: controller.activePanel)
+    }
+
+    private var expandedSubtitleTransitionKey: String {
+        if let subtitle = expandedSubtitle {
+            return "subtitle-\(subtitle)"
+        }
+        if !isSettingsPanelActive {
+            return "tracked-\(sessionController.sessions.count)"
+        }
+        return "none"
     }
 }
 
@@ -1273,6 +1304,49 @@ private struct SessionInsertTransition: ViewModifier {
             .blur(radius: blurRadius)
             .scaleEffect(scale, anchor: .top)
             .offset(y: offsetY)
+    }
+}
+
+struct GaussianBlurTransition: ViewModifier {
+    let opacity: Double
+    let blurRadius: CGFloat
+    let offsetY: CGFloat
+    let scale: CGFloat
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(opacity)
+            .blur(radius: blurRadius)
+            .scaleEffect(scale, anchor: .center)
+            .offset(y: offsetY)
+    }
+}
+
+extension AnyTransition {
+    static var gaussianBlurText: AnyTransition {
+        .asymmetric(
+            insertion: .modifier(
+                active: GaussianBlurTransition(opacity: 0, blurRadius: 14, offsetY: 6, scale: 0.985),
+                identity: GaussianBlurTransition(opacity: 1, blurRadius: 0, offsetY: 0, scale: 1)
+            ),
+            removal: .modifier(
+                active: GaussianBlurTransition(opacity: 0, blurRadius: 14, offsetY: -6, scale: 1.015),
+                identity: GaussianBlurTransition(opacity: 1, blurRadius: 0, offsetY: 0, scale: 1)
+            )
+        )
+    }
+
+    static var gaussianBlurPanel: AnyTransition {
+        .asymmetric(
+            insertion: .modifier(
+                active: GaussianBlurTransition(opacity: 0, blurRadius: 18, offsetY: 10, scale: 0.985),
+                identity: GaussianBlurTransition(opacity: 1, blurRadius: 0, offsetY: 0, scale: 1)
+            ),
+            removal: .modifier(
+                active: GaussianBlurTransition(opacity: 0, blurRadius: 18, offsetY: -10, scale: 1.015),
+                identity: GaussianBlurTransition(opacity: 1, blurRadius: 0, offsetY: 0, scale: 1)
+            )
+        )
     }
 }
 
