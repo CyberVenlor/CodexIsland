@@ -46,7 +46,7 @@ final class IslandController: ObservableObject {
     static let collapseAnimation = Animation.spring(response: 0.38, dampingFraction: 1.0)
     private static let hoverExitDelay: TimeInterval = 0.40
     private static let hoverToggleCooldown: TimeInterval = 0.24
-    private static let approvalCompletionDisplayDuration: TimeInterval = 0.85
+    private static let approvalCompletionDisplayDuration: TimeInterval = 1.8
 
     @Published var collapsedMode: CollapsedIslandMode = .detailed
     @Published private(set) var isExpanded = false
