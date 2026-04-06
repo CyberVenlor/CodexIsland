@@ -370,9 +370,7 @@ struct IslandContentView: View {
 
     private var collapsedContent: some View {
         ZStack {
-            Image(systemName: "waveform")
-                .font(.body.weight(.semibold))
-                .foregroundStyle(collapsedActivityColor)
+            AnimatedSpriteIcon(color: collapsedActivityColor)
                 .frame(width: 24)
                 .offset(x: -100)
 
@@ -538,6 +536,38 @@ struct IslandContentView: View {
         } else {
             CodexSessionListView()
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        }
+    }
+}
+
+private struct AnimatedSpriteIcon: View {
+    let color: Color
+
+    private let frameSize = CGSize(width: 24, height: 16)
+    private let frameCount = 26
+    private let frameDuration = 1.0 / 12.0
+    private let displayScale: CGFloat = 1.0
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: frameDuration, paused: false)) { timeline in
+            let elapsed = timeline.date.timeIntervalSinceReferenceDate
+            let frameIndex = Int(elapsed / frameDuration) % frameCount
+            let spriteSheetWidth = frameSize.width * CGFloat(frameCount)
+
+            Rectangle()
+                .fill(color)
+                .frame(width: frameSize.width, height: frameSize.height)
+                .mask {
+                    Image("cat")
+                        .resizable()
+                        .interpolation(.none)
+                        .frame(width: spriteSheetWidth, height: frameSize.height, alignment: .leading)
+                        .offset(x: -CGFloat(frameIndex) * frameSize.width)
+                        .frame(width: frameSize.width, height: frameSize.height, alignment: .leading)
+                        .clipped()
+                        .luminanceToAlpha()
+                }
+                .scaleEffect(displayScale, anchor: .center)
         }
     }
 }
