@@ -7,12 +7,12 @@ enum CollapsedIslandMode: String, CaseIterable, Identifiable {
 
     var id: Self { self }
 
-    var title: String {
+    func title(in language: AppLanguage) -> String {
         switch self {
         case .detailed:
-            "Detailed"
+            language.label(english: "Detailed", chinese: "详细")
         case .simplified:
-            "Simplified"
+            language.label(english: "Simplified", chinese: "简洁")
         }
     }
 }

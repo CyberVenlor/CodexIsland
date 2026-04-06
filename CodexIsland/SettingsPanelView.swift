@@ -5,6 +5,14 @@ struct SettingsPanelView: View {
     @EnvironmentObject private var settingsStore: SettingsConfigStore
     @State private var selectedTab: SettingsTab = .general
 
+    private var language: AppLanguage {
+        settingsStore.config.appLanguage
+    }
+
+    private var l10n: AppLocalization {
+        AppLocalization(language: language)
+    }
+
     var body: some View {
         HStack(spacing: 14) {
             sidebar
@@ -15,7 +23,7 @@ struct SettingsPanelView: View {
 
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Settings")
+            Text(l10n.text("Settings", chinese: "设置"))
                 .font(.headline.weight(.semibold))
                 .foregroundStyle(.white)
                 .padding(.horizontal, 6)
@@ -44,7 +52,7 @@ struct SettingsPanelView: View {
                     .font(.system(size: 12, weight: .semibold))
                     .frame(width: 16)
 
-                Text(tab.title)
+                Text(tab.title(in: language))
                     .font(.system(size: 12, weight: .medium))
 
                 Spacer(minLength: 0)
@@ -91,11 +99,11 @@ struct SettingsPanelView: View {
                 .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(selectedTab.title)
+                Text(selectedTab.title(in: language))
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(.white)
 
-                Text(selectedTab.subtitle)
+                Text(selectedTab.subtitle(in: language))
                     .font(.caption)
                     .foregroundStyle(.white.opacity(0.52))
             }
@@ -103,46 +111,31 @@ struct SettingsPanelView: View {
         .padding(.horizontal, 4)
     }
 
-    @ViewBuilder
-    private var activeTabContent: some View {
-        switch selectedTab {
-        case .general:
-            generalView
-        case .personalized:
-            personalizedView
-        case .hooks:
-            hooksView
-        case .about:
-            aboutView
-        case .quit:
-            quitView
-        }
-    }
-
     private var generalView: some View {
         formSection {
-            settingsCard("Startup") {
-                Toggle("Launch at login", isOn: $settingsStore.config.launchAtLogin)
+            settingsCard(l10n.text("Startup", chinese: "启动")) {
+                Toggle(l10n.text("Launch at login", chinese: "登录时启动"), isOn: $settingsStore.config.launchAtLogin)
             }
 
-            settingsCard("System") {
-                settingsValueRow("Status", value: "Ready")
-                settingsValueRow("Version", value: "1.0.0")
+            settingsCard(l10n.text("System", chinese: "系统")) {
+                settingsValueRow(l10n.text("Status", chinese: "状态"), value: l10n.text("Ready", chinese: "就绪"))
+                settingsValueRow(l10n.text("Version", chinese: "版本"), value: "1.0.0")
             }
         }
     }
 
     private var personalizedView: some View {
         formSection {
-            settingsCard("Profile") {
-                TextField("Display name", text: $settingsStore.config.displayName)
+            settingsCard(l10n.text("Profile", chinese: "资料")) {
+                TextField(l10n.text("Display name", chinese: "显示名称"), text: $settingsStore.config.displayName)
                     .textFieldStyle(.roundedBorder)
             }
 
-            settingsCard("Preferences") {
-                Picker("Language", selection: $settingsStore.config.preferredLanguage) {
-                    Text("English").tag("English")
-                    Text("Chinese").tag("Chinese")
+            settingsCard(l10n.text("Preferences", chinese: "偏好")) {
+                Picker(l10n.text("Language", chinese: "语言"), selection: $settingsStore.config.preferredLanguage) {
+                    ForEach(AppLanguage.allCases, id: \.self) { option in
+                        Text(option.displayName(in: language)).tag(option.settingsValue)
+                    }
                 }
                 .pickerStyle(.menu)
             }
@@ -151,15 +144,15 @@ struct SettingsPanelView: View {
 
     private var hooksView: some View {
         formSection {
-            settingsCard("Hooks") {
-                Toggle("Enable hooks", isOn: $settingsStore.config.hooksEnabled)
-                Toggle("Enable PreToolUse", isOn: $settingsStore.config.enablePreToolUseHook)
+            settingsCard(l10n.text("Hooks", chinese: "钩子")) {
+                Toggle(l10n.text("Enable hooks", chinese: "启用钩子"), isOn: $settingsStore.config.hooksEnabled)
+                Toggle(l10n.text("Enable PreToolUse", chinese: "启用 PreToolUse"), isOn: $settingsStore.config.enablePreToolUseHook)
                     .disabled(!settingsStore.config.hooksEnabled)
-                Toggle("Enable PostToolUse", isOn: $settingsStore.config.enablePostToolUseHook)
+                Toggle(l10n.text("Enable PostToolUse", chinese: "启用 PostToolUse"), isOn: $settingsStore.config.enablePostToolUseHook)
                     .disabled(!settingsStore.config.hooksEnabled)
 
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("PreToolUse timeout")
+                    Text(l10n.text("PreToolUse timeout", chinese: "PreToolUse 超时"))
                         .font(.subheadline)
                         .foregroundStyle(.white)
 
@@ -171,7 +164,10 @@ struct SettingsPanelView: View {
                     .textFieldStyle(.roundedBorder)
                     .disabled(!settingsStore.config.hooksEnabled || !settingsStore.config.enablePreToolUseHook)
 
-                    Text("When approval is still pending near this timeout, CodexIsland will proactively block the tool call.")
+                    Text(l10n.text(
+                        "When approval is still pending near this timeout, CodexIsland will proactively block the tool call.",
+                        chinese: "如果接近该超时时间时审批仍未完成，CodexIsland 会主动拦截这次工具调用。"
+                    ))
                         .font(.caption)
                         .foregroundStyle(.white.opacity(0.52))
                 }
@@ -181,30 +177,33 @@ struct SettingsPanelView: View {
 
     private var aboutView: some View {
         formSection {
-            settingsCard("Application") {
-                settingsValueRow("Name", value: "CodexIsland")
-                settingsValueRow("Version", value: "1.0.0")
-                settingsValueRow("Build", value: "26A01")
+            settingsCard(l10n.text("Application", chinese: "应用")) {
+                settingsValueRow(l10n.text("Name", chinese: "名称"), value: "CodexIsland")
+                settingsValueRow(l10n.text("Version", chinese: "版本"), value: "1.0.0")
+                settingsValueRow(l10n.text("Build", chinese: "构建号"), value: "26A01")
             }
 
-            settingsCard("Support") {
-                settingsValueRow("Website", value: "rhine-lab.xyz")
-                settingsValueRow("Email", value: "catbeluga2437@gmail.com")
+            settingsCard(l10n.text("Support", chinese: "支持")) {
+                settingsValueRow(l10n.text("Website", chinese: "网站"), value: "rhine-lab.xyz")
+                settingsValueRow(l10n.text("Email", chinese: "邮箱"), value: "catbeluga2437@gmail.com")
             }
         }
     }
 
     private var quitView: some View {
         formSection {
-            settingsCard("Quit CodexIsland") {
-                Text("Close the island overlay and terminate the app immediately.")
+            settingsCard(l10n.text("Quit CodexIsland", chinese: "退出 CodexIsland")) {
+                Text(l10n.text(
+                    "Close the island overlay and terminate the app immediately.",
+                    chinese: "关闭 Island 浮层并立即退出应用。"
+                ))
                     .font(.subheadline)
                     .foregroundStyle(.white.opacity(0.72))
 
                 Button(role: .destructive) {
                     NSApplication.shared.terminate(nil)
                 } label: {
-                    Label("Quit CodexIsland", systemImage: "power")
+                    Label(l10n.text("Quit CodexIsland", chinese: "退出 CodexIsland"), systemImage: "power")
                         .font(.subheadline.weight(.semibold))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
@@ -252,6 +251,22 @@ struct SettingsPanelView: View {
         }
         .font(.subheadline)
     }
+
+    @ViewBuilder
+    private var activeTabContent: some View {
+        switch selectedTab {
+        case .general:
+            generalView
+        case .personalized:
+            personalizedView
+        case .hooks:
+            hooksView
+        case .about:
+            aboutView
+        case .quit:
+            quitView
+        }
+    }
 }
 
 private enum SettingsTab: String, CaseIterable, Identifiable {
@@ -263,33 +278,33 @@ private enum SettingsTab: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
-    var title: String {
+    func title(in language: AppLanguage) -> String {
         switch self {
         case .general:
-            "General"
+            language.label(english: "General", chinese: "通用")
         case .personalized:
-            "Personal"
+            language.label(english: "Personal", chinese: "个人")
         case .hooks:
-            "Hooks"
+            language.label(english: "Hooks", chinese: "钩子")
         case .about:
-            "About"
+            language.label(english: "About", chinese: "关于")
         case .quit:
-            "Quit"
+            language.label(english: "Quit", chinese: "退出")
         }
     }
 
-    var subtitle: String {
+    func subtitle(in language: AppLanguage) -> String {
         switch self {
         case .general:
-            "Startup and system behavior"
+            language.label(english: "Startup and system behavior", chinese: "启动与系统行为")
         case .personalized:
-            "Profile and language preferences"
+            language.label(english: "Profile and language preferences", chinese: "资料与语言偏好")
         case .hooks:
-            "Hook toggles and endpoint settings"
+            language.label(english: "Hook toggles and endpoint settings", chinese: "钩子开关与端点设置")
         case .about:
-            "Build information and support"
+            language.label(english: "Build information and support", chinese: "构建信息与支持方式")
         case .quit:
-            "Exit the application"
+            language.label(english: "Exit the application", chinese: "退出应用")
         }
     }
 

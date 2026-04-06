@@ -13,6 +13,22 @@ import Darwin
 
 struct CodexIslandTests {
 
+    @Test func appLanguageRecognizesChinesePreferenceVariants() {
+        #expect(AppLanguage(preference: "Chinese") == .chinese)
+        #expect(AppLanguage(preference: "中文") == .chinese)
+        #expect(AppLanguage(preference: "zh-Hans") == .chinese)
+        #expect(AppLanguage(preference: "English") == .english)
+    }
+
+    @Test func appLocalizationReturnsChineseLabels() {
+        let localization = AppLocalization(language: .chinese)
+
+        #expect(localization.text("Settings", chinese: "设置") == "设置")
+        #expect(localization.trackedSessions(3) == "已跟踪 3 个")
+        #expect(localization.localizedApprovalStatus("approved") == "已批准")
+        #expect(localization.localizedSessionState(.running) == "运行中")
+    }
+
     @MainActor
     @Test func collapsedIslandEntersApprovalPanelWhenUnsafeToolIsPending() async throws {
         let islandController = IslandController()

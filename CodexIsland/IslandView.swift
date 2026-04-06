@@ -4,6 +4,7 @@ import SwiftUI
 struct IslandView: View {
     @ObservedObject var controller: IslandController
     @EnvironmentObject private var sessionController: CodexSessionController
+    @EnvironmentObject private var settingsStore: SettingsConfigStore
     private let shellStrokeWidth: CGFloat = 1.2
 
     private var state: IslandPresentationState {
@@ -16,6 +17,10 @@ struct IslandView: View {
 
     private var canvasSize: CGSize {
         IslandShellStyle.canvasSize
+    }
+
+    private var language: AppLanguage {
+        settingsStore.config.appLanguage
     }
 
     var body: some View {
@@ -31,7 +36,7 @@ struct IslandView: View {
         }
         .contextMenu {
             ForEach(CollapsedIslandMode.allCases) { mode in
-                Button(mode.title) {
+                Button(mode.title(in: language)) {
                     controller.collapsedMode = mode
                 }
             }
@@ -206,6 +211,10 @@ struct IslandContentView: View {
     @ObservedObject var sessionController: CodexSessionController
     @EnvironmentObject private var settingsStore: SettingsConfigStore
 
+    private var l10n: AppLocalization {
+        AppLocalization(language: settingsStore.config.appLanguage)
+    }
+
     private let detailedSize = IslandShellStyle.forState(.collapsed(.detailed)).size
 
     private var isExpanded: Bool {
@@ -323,7 +332,7 @@ struct IslandContentView: View {
                         .font(.caption)
                         .foregroundStyle(.white.opacity(0.55))
                 } else if !isSettingsPanelActive {
-                    Text("\(sessionController.sessions.count) tracked")
+                    Text(l10n.trackedSessions(sessionController.sessions.count))
                         .font(.caption)
                         .foregroundStyle(.white.opacity(0.55))
                 }
@@ -344,7 +353,11 @@ struct IslandContentView: View {
                         .background(Color.white.opacity(0.10), in: Circle())
                 }
                 .buttonStyle(.plain)
-                .help(isSettingsPanelActive ? "Close Settings" : "Open Settings")
+                .help(
+                    isSettingsPanelActive
+                    ? l10n.text("Close Settings", chinese: "关闭设置")
+                    : l10n.text("Open Settings", chinese: "打开设置")
+                )
             }
         }
         .padding(.bottom, 12)
@@ -352,12 +365,14 @@ struct IslandContentView: View {
 
     private var expandedTitle: String {
         if isSettingsPanelActive {
-            return "Settings"
+            return l10n.text("Settings", chinese: "设置")
         }
         if let status = approvalPanelStatus {
-            return status == .pending ? "Tool Approval" : "Approved"
+            return status == .pending
+                ? l10n.text("Tool Approval", chinese: "工具审批")
+                : l10n.text("Approved", chinese: "已批准")
         }
-        return "Codex Sessions"
+        return l10n.text("Codex Sessions", chinese: "Codex 会话")
     }
 
     private var expandedSubtitle: String? {
@@ -367,9 +382,9 @@ struct IslandContentView: View {
 
         switch status {
         case .pending:
-            return "Unsafe tool requires manual approval"
+            return l10n.text("Unsafe tool requires manual approval", chinese: "高风险工具需要手动审批")
         case .completed:
-            return "Approval queue cleared"
+            return l10n.text("Approval queue cleared", chinese: "审批队列已清空")
         }
     }
 
@@ -393,6 +408,11 @@ struct IslandContentView: View {
 private struct ApprovalPanelView: View {
     let status: ApprovalPanelStatus
     @EnvironmentObject private var sessionController: CodexSessionController
+    @EnvironmentObject private var settingsStore: SettingsConfigStore
+
+    private var l10n: AppLocalization {
+        AppLocalization(language: settingsStore.config.appLanguage)
+    }
 
     var body: some View {
         Group {
@@ -412,7 +432,7 @@ private struct ApprovalPanelView: View {
     private func pendingView(_ toolCall: CodexToolCall) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             VStack(alignment: .leading, spacing: 8) {
-                approvalLabel("Tool", value: toolCall.toolName ?? toolCall.toolUseID ?? "-")
+                approvalLabel(l10n.text("Tool", chinese: "工具"), value: toolCall.toolName ?? toolCall.toolUseID ?? "-")
 
                 if let toolUseID = toolCall.toolUseID {
                     approvalLabel("ID", value: toolUseID, monospaced: true)
@@ -420,7 +440,7 @@ private struct ApprovalPanelView: View {
 
                 if let command = toolCall.toolCommand {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Command")
+                        Text(l10n.text("Command", chinese: "命令"))
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(.white.opacity(0.65))
 
@@ -437,13 +457,13 @@ private struct ApprovalPanelView: View {
             }
 
             HStack(spacing: 10) {
-                Button("Deny") {
+                Button(l10n.text("Deny", chinese: "拒绝")) {
                     sessionController.deny(toolCall)
                 }
                 .buttonStyle(.bordered)
                 .tint(.white.opacity(0.8))
 
-                Button("Approve") {
+                Button(l10n.text("Approve", chinese: "批准")) {
                     sessionController.approve(toolCall)
                 }
                 .buttonStyle(.borderedProminent)
@@ -459,24 +479,24 @@ private struct ApprovalPanelView: View {
         VStack(spacing: 14) {
             ApprovalCompletionGlyph()
 
-            Text("Approval Complete")
+            Text(l10n.text("Approval Complete", chinese: "审批完成"))
                 .font(.headline)
                 .foregroundStyle(.white)
 
             HStack(spacing: 12) {
                 decisionCountPill(
-                    label: "Approved",
+                    label: l10n.text("Approved", chinese: "已批准"),
                     count: sessionController.approvalDecisionCounts.approved,
                     color: .green
                 )
                 decisionCountPill(
-                    label: "Blocked",
+                    label: l10n.text("Blocked", chinese: "已拦截"),
                     count: sessionController.approvalDecisionCounts.denied,
                     color: .red
                 )
             }
 
-            Text("All pending unsafe tools have been processed.")
+            Text(l10n.text("All pending unsafe tools have been processed.", chinese: "所有待处理的高风险工具都已经处理完成。"))
                 .font(.caption)
                 .foregroundStyle(.white.opacity(0.65))
                 .multilineTextAlignment(.center)
@@ -565,9 +585,14 @@ private struct CheckmarkShape: Shape {
 
 struct CodexSessionListView: View {
     @EnvironmentObject private var sessionController: CodexSessionController
+    @EnvironmentObject private var settingsStore: SettingsConfigStore
     private let sessionCornerRadius: CGFloat = 16
     private let toolCallCornerRadius: CGFloat = 12
     private let sessionStackAnimation = Animation.spring(response: 0.42, dampingFraction: 0.86)
+
+    private var l10n: AppLocalization {
+        AppLocalization(language: settingsStore.config.appLanguage)
+    }
 
     var body: some View {
         ScrollView {
@@ -590,9 +615,12 @@ struct CodexSessionListView: View {
         .overlay {
             if sessionController.sessions.isEmpty {
                 ContentUnavailableView(
-                    "No Codex Sessions",
+                    l10n.text("No Codex Sessions", chinese: "没有 Codex 会话"),
                     systemImage: "bolt.slash",
-                    description: Text("Only sessions received after this app launch are tracked.")
+                    description: Text(l10n.text(
+                        "Only sessions received after this app launch are tracked.",
+                        chinese: "只会跟踪本次启动应用后收到的会话。"
+                    ))
                 )
             }
         }
@@ -618,7 +646,7 @@ struct CodexSessionListView: View {
                         .lineLimit(1)
                         .fixedSize(horizontal: true, vertical: false)
 
-                    Text(session.state.displayName)
+                    Text(l10n.localizedSessionState(session.state))
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(stateColor(for: session.state))
                         .padding(.horizontal, 8)
@@ -634,12 +662,12 @@ struct CodexSessionListView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     ForEach(session.toolCalls) { toolCall in
                         VStack(alignment: .leading, spacing: 6) {
-                            Text("tool: \(toolCall.toolName ?? toolCall.toolUseID ?? "-")")
+                            Text(l10n.toolLabel(name: toolCall.toolName ?? toolCall.toolUseID ?? "-"))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
 
                             if let toolUseID = toolCall.toolUseID {
-                                Text("toolUseId: \(toolUseID)")
+                                Text(l10n.toolUseIDLabel(toolUseID))
                                     .font(.caption2.monospaced())
                                     .foregroundStyle(.secondary)
                             }
@@ -652,18 +680,18 @@ struct CodexSessionListView: View {
 
                             if toolCall.requiresApproval {
                                 HStack {
-                                    Button("Approve") {
+                                    Button(l10n.text("Approve", chinese: "批准")) {
                                         sessionController.approve(toolCall)
                                     }
                                     .buttonStyle(.borderedProminent)
 
-                                    Button("Deny") {
+                                    Button(l10n.text("Deny", chinese: "拒绝")) {
                                         sessionController.deny(toolCall)
                                     }
                                     .buttonStyle(.bordered)
                                 }
                             } else if let approvalStatus = toolCall.approvalStatus {
-                                Text("approval: \(approvalStatus)")
+                                Text(l10n.approvalStatusLabel(approvalStatus))
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
