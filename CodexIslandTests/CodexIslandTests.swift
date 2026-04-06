@@ -370,6 +370,54 @@ struct CodexIslandTests {
     }
 
     @MainActor
+    @Test func sessionListRetainsPromptAndReplyPreview() async throws {
+        let directoryURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let databaseURL = directoryURL.appendingPathComponent("state_5.sqlite")
+        try FileManager.default.createDirectory(
+            at: directoryURL,
+            withIntermediateDirectories: true
+        )
+
+        let controller = CodexSessionController(
+            threadNameStore: CodexSessionThreadNameStore(databaseURL: databaseURL)
+        )
+
+        let promptPayload = """
+        {
+          "session_id": "session-1",
+          "transcript_path": "/tmp/transcript.jsonl",
+          "cwd": "/tmp/CodexIsland",
+          "hook_event_name": "UserPromptSubmit",
+          "model": "gpt-5.4",
+          "permission_mode": "default",
+          "turn_id": "turn-1",
+          "prompt": "显示当前 prompt"
+        }
+        """.data(using: .utf8)!
+
+        let replyPayload = """
+        {
+          "session_id": "session-1",
+          "transcript_path": "/tmp/transcript.jsonl",
+          "cwd": "/tmp/CodexIsland",
+          "hook_event_name": "Stop",
+          "model": "gpt-5.4",
+          "permission_mode": "default",
+          "turn_id": "turn-1",
+          "last_assistant_message": "这是当前 reply"
+        }
+        """.data(using: .utf8)!
+
+        _ = controller.handleIncomingPayload(promptPayload, client: -1)
+        _ = controller.handleIncomingPayload(replyPayload, client: -1)
+
+        #expect(controller.sessions.count == 1)
+        #expect(controller.sessions[0].lastUserPrompt == "显示当前 prompt")
+        #expect(controller.sessions[0].lastAssistantMessage == "这是当前 reply")
+    }
+
+    @MainActor
     @Test func openSessionDelegatesToNavigator() async throws {
         let navigator = SessionNavigatorSpy()
         let controller = CodexSessionController(sessionNavigator: navigator)

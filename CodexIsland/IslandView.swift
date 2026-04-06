@@ -878,8 +878,15 @@ struct CodexSessionListView: View {
                 }
             }
 
+            if let lastUserPrompt = session.lastUserPrompt, !lastUserPrompt.isEmpty {
+                Text("prompt: \(lastUserPrompt)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+
             if let lastAssistantMessage = session.lastAssistantMessage, !lastAssistantMessage.isEmpty {
-                Text(lastAssistantMessage)
+                Text("reply: \(lastAssistantMessage)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
