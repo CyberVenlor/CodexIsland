@@ -322,6 +322,24 @@ struct IslandContentView: View {
         sessionController.runningSessionCount > 0 ? .green : .blue
     }
 
+    private var collapsedSessionCountFont: Font {
+        let pixelCandidates = [
+            "Silkscreen-Regular",
+            "PressStart2P-Regular",
+            "PixeloidSans",
+            "PixeloidMono",
+            "Monaco",
+        ]
+
+        for name in pixelCandidates {
+            if let font = NSFont(name: name, size: 11) {
+                return Font(font)
+            }
+        }
+
+        return .system(size: 11, weight: .bold, design: .monospaced)
+    }
+
     var body: some View {
         ZStack(alignment: .top) {
             collapsedContent
@@ -359,6 +377,8 @@ struct IslandContentView: View {
                 .offset(x: -100)
 
             Text(collapsedRunningSessionCountText)
+                .font(collapsedSessionCountFont)
+                .kerning(0.4)
                 .foregroundStyle(collapsedActivityColor)
                 .offset(x: 100)
         }
