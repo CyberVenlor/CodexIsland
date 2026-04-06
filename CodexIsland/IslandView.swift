@@ -372,13 +372,13 @@ struct IslandContentView: View {
         ZStack {
             AnimatedSpriteIcon(color: collapsedActivityColor)
                 .frame(width: 24)
-                .offset(x: -100)
+                .offset(x: -102)
 
             Text(collapsedRunningSessionCountText)
                 .font(collapsedSessionCountFont)
                 .kerning(0.4)
                 .foregroundStyle(collapsedActivityColor)
-                .offset(x: 100)
+                .offset(x: 102)
         }
         .padding(.horizontal, 16)
         .padding(.top, 0)
