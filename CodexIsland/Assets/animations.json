@@ -1,0 +1,33 @@
+{
+  "frameWidth": 24,
+  "frameHeight": 16,
+  "displayScale": 1,
+  "animations": [
+    {
+      "name": "sleep",
+      "file": "sleep.png",
+      "asset": "sleep",
+      "frames": 2,
+      "fps": 3,
+      "loop": true
+    },
+    {
+      "name": "idle",
+      "file": "idle.png",
+      "asset": "idle",
+      "frames": 26,
+      "fps": 12,
+      "loop": true
+    },
+    {
+      "name": "idleToSleep",
+      "file": "idle->sleep.png",
+      "asset": "idle_to_sleep",
+      "frames": 15,
+      "fps": 10,
+      "loop": false,
+      "from": "idle",
+      "to": "sleep"
+    }
+  ]
+}

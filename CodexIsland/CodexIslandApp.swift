@@ -16,6 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        _ = SpriteAnimationCatalog.shared
         configureLaunchAtLogin()
         sessionController.updateHookSettings(settingsStore.config)
         overlayController.start()

@@ -370,7 +370,11 @@ struct IslandContentView: View {
 
     private var collapsedContent: some View {
         ZStack {
-            AnimatedSpriteIcon(color: collapsedActivityColor)
+            AnimatedSpriteIcon(
+                color: collapsedActivityColor,
+                hasRunningSessions: sessionController.runningSessionCount > 0,
+                isVisible: isDetailedCollapsed
+            )
                 .frame(width: 24)
                 .offset(x: -102)
 
@@ -573,32 +577,198 @@ struct IslandContentView: View {
 
 private struct AnimatedSpriteIcon: View {
     let color: Color
+    let hasRunningSessions: Bool
+    let isVisible: Bool
 
-    private let frameSize = CGSize(width: 24, height: 16)
-    private let frameCount = 26
-    private let frameDuration = 1.0 / 12.0
-    private let displayScale: CGFloat = 1.0
+    @State private var playbackState: SpritePlaybackState
+    private let catalog = SpriteAnimationCatalog.shared
+
+    init(color: Color, hasRunningSessions: Bool, isVisible: Bool) {
+        self.color = color
+        self.hasRunningSessions = hasRunningSessions
+        self.isVisible = isVisible
+        _playbackState = State(
+            initialValue: SpritePlaybackState(initialLoop: hasRunningSessions ? .idle : .sleep)
+        )
+    }
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: frameDuration, paused: false)) { timeline in
-            let elapsed = timeline.date.timeIntervalSinceReferenceDate
-            let frameIndex = Int(elapsed / frameDuration) % frameCount
-            let spriteSheetWidth = frameSize.width * CGFloat(frameCount)
-
+        TimelineView(.periodic(from: .now, by: playbackState.frameDuration(using: catalog))) { timeline in
             Rectangle()
                 .fill(color)
-                .frame(width: frameSize.width, height: frameSize.height)
+                .frame(width: catalog.frameSize.width, height: catalog.frameSize.height)
                 .mask {
-                    Image("cat")
-                        .resizable()
-                        .interpolation(.none)
-                        .frame(width: spriteSheetWidth, height: frameSize.height, alignment: .leading)
-                        .offset(x: -CGFloat(frameIndex) * frameSize.width)
-                        .frame(width: frameSize.width, height: frameSize.height, alignment: .leading)
-                        .clipped()
-                        .luminanceToAlpha()
+                    if let frame = playbackState.currentFrame(at: timeline.date, using: catalog) {
+                        Image(decorative: frame, scale: 1)
+                            .interpolation(.none)
+                            .resizable()
+                            .frame(width: catalog.frameSize.width, height: catalog.frameSize.height)
+                            .luminanceToAlpha()
+                    }
                 }
-                .scaleEffect(displayScale, anchor: .center)
+                .scaleEffect(catalog.displayScale, anchor: .center)
+                .onAppear {
+                    playbackState.syncDesiredLoop(
+                        hasRunningSessions ? .idle : .sleep,
+                        isVisible: isVisible,
+                        at: timeline.date,
+                        using: catalog
+                    )
+                }
+                .onChange(of: hasRunningSessions) { running in
+                    playbackState.syncDesiredLoop(
+                        running ? .idle : .sleep,
+                        isVisible: isVisible,
+                        at: timeline.date,
+                        using: catalog
+                    )
+                }
+                .onChange(of: isVisible) { visible in
+                    playbackState.handleVisibilityChange(visible, at: timeline.date, using: catalog)
+                }
+                .onChange(of: timeline.date) { _ in
+                    playbackState.tick(at: timeline.date, isVisible: isVisible, using: catalog)
+                }
+        }
+    }
+}
+
+private struct SpritePlaybackState {
+    private enum ActiveClip {
+        case loop(SpriteLoopState)
+        case transition(SpriteAnimationClip)
+    }
+
+    private var currentLoop: SpriteLoopState
+    private var desiredLoop: SpriteLoopState
+    private var activeClip: ActiveClip
+    private var clipStartedAt: Date = .now
+
+    init(initialLoop: SpriteLoopState) {
+        currentLoop = initialLoop
+        desiredLoop = initialLoop
+        activeClip = .loop(initialLoop)
+    }
+
+    func frameDuration(using catalog: SpriteAnimationCatalog) -> TimeInterval {
+        1.0 / 60.0
+    }
+
+    func currentFrame(at date: Date, using catalog: SpriteAnimationCatalog) -> CGImage? {
+        let frames = activeFrames(using: catalog)
+        guard !frames.isEmpty else { return nil }
+
+        let frameIndex = frameIndex(at: date, frameCount: frames.count, using: catalog)
+        return frames[frameIndex]
+    }
+
+    mutating func syncDesiredLoop(
+        _ loop: SpriteLoopState,
+        isVisible: Bool,
+        at date: Date,
+        using catalog: SpriteAnimationCatalog
+    ) {
+        desiredLoop = loop
+
+        if !isVisible, catalog.transitionClip(from: currentLoop, to: desiredLoop) == nil {
+            currentLoop = desiredLoop
+            activeClip = .loop(desiredLoop)
+            clipStartedAt = date
+            return
+        }
+
+        if isVisible {
+            startPendingChangeIfNeeded(at: date, using: catalog)
+        }
+    }
+
+    mutating func handleVisibilityChange(_ isVisible: Bool, at date: Date, using catalog: SpriteAnimationCatalog) {
+        guard isVisible else { return }
+        startPendingChangeIfNeeded(at: date, using: catalog)
+    }
+
+    mutating func tick(at date: Date, isVisible: Bool, using catalog: SpriteAnimationCatalog) {
+        guard isVisible else { return }
+
+        let frames = activeFrames(using: catalog)
+        guard !frames.isEmpty else { return }
+
+        switch activeClip {
+        case .loop:
+            _ = startPendingChangeIfNeeded(at: date, using: catalog)
+
+        case .transition(let clip):
+            let elapsedFrames = elapsedFrameCount(at: date, using: catalog)
+            if elapsedFrames < frames.count {
+                return
+            }
+
+            if let target = clip.to {
+                currentLoop = target
+            }
+            activeClip = .loop(currentLoop)
+            clipStartedAt = date
+            _ = startPendingChangeIfNeeded(at: date, using: catalog)
+        }
+    }
+
+    private mutating func startPendingChangeIfNeeded(at date: Date, using catalog: SpriteAnimationCatalog) -> Bool {
+        guard desiredLoop != currentLoop else {
+            if case .loop(let loop) = activeClip, loop == currentLoop {
+                return false
+            }
+            activeClip = .loop(currentLoop)
+            clipStartedAt = date
+            return true
+        }
+
+        if case .transition = activeClip {
+            return false
+        }
+
+        if let transition = catalog.transitionClip(from: currentLoop, to: desiredLoop) {
+            activeClip = .transition(transition)
+            clipStartedAt = date
+            return true
+        }
+
+        currentLoop = desiredLoop
+        activeClip = .loop(currentLoop)
+        clipStartedAt = date
+        return true
+    }
+
+    private func activeFrames(using catalog: SpriteAnimationCatalog) -> [CGImage] {
+        switch activeClip {
+        case .loop(let loop):
+            return catalog.loopClip(for: loop)?.frames ?? []
+        case .transition(let clip):
+            return clip.frames
+        }
+    }
+
+    private func frameIndex(at date: Date, frameCount: Int, using catalog: SpriteAnimationCatalog) -> Int {
+        guard frameCount > 0 else { return 0 }
+
+        switch activeClip {
+        case .loop:
+            return elapsedFrameCount(at: date, using: catalog) % frameCount
+        case .transition:
+            return min(elapsedFrameCount(at: date, using: catalog), frameCount - 1)
+        }
+    }
+
+    private func elapsedFrameCount(at date: Date, using catalog: SpriteAnimationCatalog) -> Int {
+        let elapsed = max(0, date.timeIntervalSince(clipStartedAt))
+        return Int(floor(elapsed * activeFramesPerSecond(using: catalog)))
+    }
+
+    private func activeFramesPerSecond(using catalog: SpriteAnimationCatalog) -> Double {
+        switch activeClip {
+        case .loop(let loop):
+            return max(catalog.loopClip(for: loop)?.framesPerSecond ?? 12, 0.1)
+        case .transition(let clip):
+            return max(clip.framesPerSecond, 0.1)
         }
     }
 }
