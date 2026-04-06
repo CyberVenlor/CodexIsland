@@ -71,32 +71,6 @@
 		};
 /* End PBXFrameworksBuildPhase section */
 
-/* Begin PBXShellScriptBuildPhase section */
-		D7D6CB032F812B89002869C9 /* Build Rust Approval Matcher */ = {
-			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 0;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-				"$(SRCROOT)/RustApprovalMatcher/Cargo.toml",
-				"$(SRCROOT)/RustApprovalMatcher/src/lib.rs",
-			);
-			name = "Build Rust Approval Matcher";
-			outputFileListPaths = (
-			);
-			outputPaths = (
-				"$(SRCROOT)/RustApprovalMatcher/target/debug/libcodex_command_approval_matcher.a",
-				"$(SRCROOT)/RustApprovalMatcher/target/release/libcodex_command_approval_matcher.a",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "set -e\nexport PATH=\"$HOME/.cargo/bin:$PATH\"\nif [ \"$CONFIGURATION\" = \"Release\" ]; then\n  cargo build --manifest-path \"$SRCROOT/RustApprovalMatcher/Cargo.toml\" --release\nelse\n  cargo build --manifest-path \"$SRCROOT/RustApprovalMatcher/Cargo.toml\"\nfi";
-		};
-/* End PBXShellScriptBuildPhase section */
-
 /* Begin PBXGroup section */
 		D7D6CACC2F812B88002869C9 = {
 			isa = PBXGroup;
@@ -257,6 +231,31 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		D7D6CB032F812B89002869C9 /* Build Rust Approval Matcher */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/RustApprovalMatcher/Cargo.toml",
+				"$(SRCROOT)/RustApprovalMatcher/src/lib.rs",
+			);
+			name = "Build Rust Approval Matcher";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(SRCROOT)/RustApprovalMatcher/target/debug/libcodex_command_approval_matcher.a",
+				"$(SRCROOT)/RustApprovalMatcher/target/release/libcodex_command_approval_matcher.a",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -e\nexport PATH=\"$HOME/.cargo/bin:$PATH\"\nif [ \"$CONFIGURATION\" = \"Release\" ]; then\n  cargo build --manifest-path \"$SRCROOT/RustApprovalMatcher/Cargo.toml\" --release\nelse\n  cargo build --manifest-path \"$SRCROOT/RustApprovalMatcher/Cargo.toml\"\nfi";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		D7D6CAD12F812B88002869C9 /* Sources */ = {
@@ -425,9 +424,9 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"CodexIsland/Preview Content\"";
 				DEVELOPMENT_TEAM = 5V22CLHNY9;
-				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -461,9 +460,9 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"CodexIsland/Preview Content\"";
 				DEVELOPMENT_TEAM = 5V22CLHNY9;
-				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (

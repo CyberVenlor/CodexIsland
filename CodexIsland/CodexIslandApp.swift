@@ -12,11 +12,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         settingsStore: settingsStore
     )
     private lazy var relayServer = CodexHookRelayServer(sessionController: sessionController)
-    private var settingsObserver: AnyCancellable?
+    private var settingsObservers: Set<AnyCancellable> = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         configureLaunchAtLogin()
+        sessionController.updateHookSettings(settingsStore.config)
         overlayController.start()
         relayServer.start()
     }
@@ -24,12 +25,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func configureLaunchAtLogin() {
         syncLaunchAtLoginSetting(enabled: settingsStore.config.launchAtLogin)
 
-        settingsObserver = settingsStore.$config
+        settingsStore.$config
             .map(\.launchAtLogin)
             .removeDuplicates()
             .sink { [weak self] isEnabled in
                 self?.syncLaunchAtLoginSetting(enabled: isEnabled)
             }
+            .store(in: &settingsObservers)
+
+        settingsStore.$config
+            .sink { [weak self] config in
+                self?.sessionController.updateHookSettings(config)
+            }
+            .store(in: &settingsObservers)
     }
 
     private func syncLaunchAtLoginSetting(enabled: Bool) {

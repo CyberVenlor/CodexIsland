@@ -8,6 +8,7 @@
 import Foundation
 import SQLite3
 import Testing
+import Darwin
 @testable import CodexIsland
 
 struct CodexIslandTests {
@@ -414,6 +415,95 @@ struct CodexIslandTests {
         #expect(disposition == .holdClient)
         #expect(controller.sessions.first?.toolCalls.first?.requiresApproval == true)
         #expect(controller.sessions.first?.toolCalls.first?.approvalStatus == "pending")
+    }
+
+    @Test func hooksConfigStoreWritesExpectedHooksJson() throws {
+        let directoryURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+
+        let hooksURL = directoryURL.appendingPathComponent("hooks.json")
+        let store = CodexHooksConfigStore(
+            hooksURL: hooksURL,
+            helperCommand: "/tmp/codex_hook_helper.py"
+        )
+
+        var config = SettingsConfig()
+        config.hooksEnabled = true
+        config.enablePreToolUseHook = true
+        config.enablePostToolUseHook = false
+        config.preToolUseTimeout = 300
+
+        try store.write(config: config)
+
+        let data = try Data(contentsOf: hooksURL)
+        let decoded = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        let hooks = decoded?["hooks"] as? [String: Any]
+
+        #expect(hooks?["PreToolUse"] != nil)
+        #expect(hooks?["PostToolUse"] == nil)
+
+        let preToolUse = hooks?["PreToolUse"] as? [[String: Any]]
+        let matcher = preToolUse?.first
+        let commands = matcher?["hooks"] as? [[String: Any]]
+        let command = commands?.first
+
+        #expect(command?["command"] as? String == "/tmp/codex_hook_helper.py")
+        #expect(command?["timeout"] as? Int == 300)
+    }
+
+    @MainActor
+    @Test func pendingApprovalAutoDeniesBeforeHookTimeout() async throws {
+        let controller = CodexSessionController(
+            threadNameStore: CodexSessionThreadNameStore(
+                databaseURL: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString),
+                indexURL: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            ),
+            autoDenyLeadTime: 0.95
+        )
+
+        var config = SettingsConfig()
+        config.preToolUseTimeout = 1
+        controller.updateHookSettings(config)
+
+        var sockets = [Int32](repeating: 0, count: 2)
+        #expect(socketpair(AF_UNIX, Int32(SOCK_STREAM), 0, &sockets) == 0)
+        let clientSocket = sockets[0]
+        let peerSocket = sockets[1]
+        defer {
+            close(peerSocket)
+        }
+
+        let payload = """
+        {
+          "session_id": "session-1",
+          "transcript_path": "/tmp/transcript.jsonl",
+          "cwd": "/tmp/CodexIsland",
+          "hook_event_name": "PreToolUse",
+          "model": "gpt-5.4",
+          "permission_mode": "default",
+          "turn_id": "turn-1",
+          "tool_name": "Bash",
+          "tool_use_id": "tool-1",
+          "tool_input": {
+            "command": "swift test"
+          }
+        }
+        """.data(using: .utf8)!
+
+        let disposition = controller.handleIncomingPayload(payload, client: clientSocket)
+        #expect(disposition == .holdClient)
+
+        try await Task.sleep(for: .milliseconds(250))
+
+        let responseData = try FileHandle(fileDescriptor: peerSocket, closeOnDealloc: false).readToEnd() ?? Data()
+        let response = try JSONSerialization.jsonObject(with: responseData) as? [String: Any]
+        let hookResponse = response?["hookResponse"] as? [String: Any]
+
+        #expect(response?["decision"] as? String == "deny")
+        #expect(hookResponse?["reason"] as? String == "Timed out waiting for approval from CodexIsland")
+        #expect(controller.pendingApprovalToolCall == nil)
+        #expect(controller.sessions.first?.toolCalls.isEmpty == true)
     }
 
 }
