@@ -25,6 +25,12 @@ enum IslandPresentationState: Equatable {
 enum ExpandedIslandPanel: Equatable {
     case sessions
     case settings
+    case approval(status: ApprovalPanelStatus)
+}
+
+enum ApprovalPanelStatus: Equatable {
+    case pending
+    case completed
 }
 
 struct IslandListItem: Identifiable, Hashable {
@@ -40,6 +46,7 @@ final class IslandController: ObservableObject {
     static let collapseAnimation = Animation.spring(response: 0.38, dampingFraction: 1.0)
     private static let hoverExitDelay: TimeInterval = 0.40
     private static let hoverToggleCooldown: TimeInterval = 0.24
+    private static let approvalCompletionDisplayDuration: TimeInterval = 0.85
 
     @Published var collapsedMode: CollapsedIslandMode = .detailed
     @Published private(set) var isExpanded = false
@@ -47,8 +54,10 @@ final class IslandController: ObservableObject {
 
     private var pendingCollapse: DispatchWorkItem?
     private var pendingTransition: DispatchWorkItem?
+    private var pendingApprovalCompletion: DispatchWorkItem?
     private var lastTransitionAt: Date = .distantPast
     private var targetExpandedState = false
+    private var approvalPresentationLocked = false
 
     let items: [IslandListItem] = [
         IslandListItem(title: "Now Playing", subtitle: "Ambient mix queued for focus mode", systemImage: "music.note"),
@@ -65,6 +74,7 @@ final class IslandController: ObservableObject {
     }
 
     func handleHoverChange(_ isHovering: Bool) {
+        guard !approvalPresentationLocked else { return }
         pendingCollapse?.cancel()
         pendingCollapse = nil
         targetExpandedState = isHovering
@@ -99,8 +109,9 @@ final class IslandController: ObservableObject {
         lastTransitionAt = Date()
     }
 
-    func collapse() {
+    func collapse(resetActivePanel: Bool = true) {
         guard isExpanded else { return }
+        guard !approvalPresentationLocked else { return }
         guard canTransitionNow else {
             scheduleTransitionRetry(for: false)
             return
@@ -108,17 +119,60 @@ final class IslandController: ObservableObject {
 
         withAnimation(Self.collapseAnimation) {
             isExpanded = false
-            activePanel = .sessions
+            if resetActivePanel {
+                activePanel = .sessions
+            }
         }
         lastTransitionAt = Date()
     }
 
     func toggleSettingsPanel() {
-        guard isExpanded else { return }
+        guard isExpanded, !approvalPresentationLocked else { return }
 
         withAnimation(Self.expandAnimation) {
             activePanel = activePanel == .settings ? .sessions : .settings
         }
+    }
+
+    func updateApprovalPresentation(hasPendingApproval: Bool) {
+        pendingApprovalCompletion?.cancel()
+        pendingApprovalCompletion = nil
+
+        if hasPendingApproval {
+            guard approvalPresentationLocked || !isExpanded else { return }
+            approvalPresentationLocked = true
+            targetExpandedState = true
+            if !isExpanded {
+                expand()
+            }
+            withAnimation(Self.expandAnimation) {
+                activePanel = .approval(status: .pending)
+            }
+            return
+        }
+
+        guard approvalPresentationLocked else { return }
+
+        withAnimation(Self.expandAnimation) {
+            activePanel = .approval(status: .completed)
+        }
+        Self.performApprovalCompletionHaptic()
+
+        let completionWorkItem = DispatchWorkItem { [weak self] in
+            Task { @MainActor in
+                guard let self else { return }
+                self.approvalPresentationLocked = false
+                self.targetExpandedState = false
+                self.collapse(resetActivePanel: false)
+                self.activePanel = .sessions
+            }
+        }
+
+        pendingApprovalCompletion = completionWorkItem
+        DispatchQueue.main.asyncAfter(
+            deadline: .now() + Self.approvalCompletionDisplayDuration,
+            execute: completionWorkItem
+        )
     }
 
     private var canTransitionNow: Bool {
@@ -154,5 +208,9 @@ final class IslandController: ObservableObject {
 
     private static func performExpandHaptic() {
         NSHapticFeedbackManager.defaultPerformer.perform(.generic, performanceTime: .now)
+    }
+
+    private static func performApprovalCompletionHaptic() {
+        NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
     }
 }

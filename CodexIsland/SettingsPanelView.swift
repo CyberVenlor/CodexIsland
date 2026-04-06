@@ -153,13 +153,28 @@ struct SettingsPanelView: View {
         formSection {
             settingsCard("Hooks") {
                 Toggle("Enable hooks", isOn: $settingsStore.config.hooksEnabled)
-                Toggle("Enable pre-hook", isOn: $settingsStore.config.enablePreHook)
-                Toggle("Enable post-hook", isOn: $settingsStore.config.enablePostHook)
-            }
+                Toggle("Enable PreToolUse", isOn: $settingsStore.config.enablePreToolUseHook)
+                    .disabled(!settingsStore.config.hooksEnabled)
+                Toggle("Enable PostToolUse", isOn: $settingsStore.config.enablePostToolUseHook)
+                    .disabled(!settingsStore.config.hooksEnabled)
 
-            settingsCard("Endpoint") {
-                TextField("Hook URL", text: $settingsStore.config.hookURL)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("PreToolUse timeout")
+                        .font(.subheadline)
+                        .foregroundStyle(.white)
+
+                    TextField(
+                        "300",
+                        value: $settingsStore.config.preToolUseTimeout,
+                        format: .number
+                    )
                     .textFieldStyle(.roundedBorder)
+                    .disabled(!settingsStore.config.hooksEnabled || !settingsStore.config.enablePreToolUseHook)
+
+                    Text("When approval is still pending near this timeout, CodexIsland will proactively block the tool call.")
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.52))
+                }
             }
         }
     }

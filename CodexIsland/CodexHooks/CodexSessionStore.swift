@@ -357,6 +357,7 @@ private struct SessionRecord {
             requiresApproval = false
             approvalStatus = nil
         case .preToolUse(let context):
+            let requiresApproval = CodexCommandApprovalMatcher.requiresApproval(for: context)
             sessionID = context.sessionID
             id = Self.makeToolEventID(sessionID: context.sessionID, toolUseID: context.toolUseID)
             title = Self.makeTitle(from: context.cwd)
@@ -371,8 +372,8 @@ private struct SessionRecord {
             toolName = context.toolName.displayName
             toolUseID = context.toolUseID
             toolCommand = context.toolInput.command
-            requiresApproval = true
-            approvalStatus = "pending"
+            self.requiresApproval = requiresApproval
+            approvalStatus = requiresApproval ? "pending" : nil
         case .postToolUse(let context):
             sessionID = context.sessionID
             id = Self.makeToolEventID(sessionID: context.sessionID, toolUseID: context.toolUseID)

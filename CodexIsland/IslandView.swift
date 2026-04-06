@@ -23,6 +23,12 @@ struct IslandView: View {
             islandBody
         }
         .frame(width: canvasSize.width, height: canvasSize.height, alignment: .top)
+        .onAppear {
+            controller.updateApprovalPresentation(hasPendingApproval: sessionController.hasPendingApprovals)
+        }
+        .onChange(of: sessionController.pendingApprovalToolCall?.id) { newValue in
+            controller.updateApprovalPresentation(hasPendingApproval: newValue != nil)
+        }
         .contextMenu {
             ForEach(CollapsedIslandMode.allCases) { mode in
                 Button(mode.title) {
@@ -229,6 +235,10 @@ struct IslandContentView: View {
         return String(format: "%02d", count)
     }
 
+    private var collapsedActivityColor: Color {
+        sessionController.runningSessionCount > 0 ? .green : .blue
+    }
+
     var body: some View {
         ZStack(alignment: .top) {
             collapsedContent
@@ -249,12 +259,12 @@ struct IslandContentView: View {
         ZStack {
             Image(systemName: "waveform")
                 .font(.body.weight(.semibold))
-                .foregroundStyle(.white.opacity(0.8))
+                .foregroundStyle(collapsedActivityColor)
                 .frame(width: 24)
                 .offset(x: -100)
 
             Text(collapsedRunningSessionCountText)
-                .foregroundStyle(.white)
+                .foregroundStyle(collapsedActivityColor)
                 .offset(x: 100)
         }
         .padding(.horizontal, 16)
@@ -282,6 +292,17 @@ struct IslandContentView: View {
         controller.activePanel == .settings
     }
 
+    private var approvalPanelStatus: ApprovalPanelStatus? {
+        if case .approval(let status) = controller.activePanel {
+            return status
+        }
+        return nil
+    }
+
+    private var isApprovalPanelActive: Bool {
+        approvalPanelStatus != nil
+    }
+
     private var settingsIconOpacity: Double {
         isSettingsPanelActive ? 0 : 1
     }
@@ -293,11 +314,15 @@ struct IslandContentView: View {
     private var expandedHeader: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(isSettingsPanelActive ? "Settings" : "Codex Sessions")
+                Text(expandedTitle)
                     .font(.headline)
                     .foregroundStyle(.white)
 
-                if !isSettingsPanelActive {
+                if let subtitle = expandedSubtitle {
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.55))
+                } else if !isSettingsPanelActive {
                     Text("\(sessionController.sessions.count) tracked")
                         .font(.caption)
                         .foregroundStyle(.white.opacity(0.55))
@@ -306,21 +331,46 @@ struct IslandContentView: View {
 
             Spacer()
 
-            Button {
-                controller.toggleSettingsPanel()
-            } label: {
-                Image(systemName: isSettingsPanelActive ? "xmark.circle.fill" : "gearshape.fill")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.92))
-                    .opacity(isSettingsPanelActive ? closeIconOpacity : settingsIconOpacity)
-                    .animation(.linear(duration: 0.16), value: isSettingsPanelActive)
-                    .frame(width: 30, height: 30)
-                    .background(Color.white.opacity(0.10), in: Circle())
+            if !isApprovalPanelActive {
+                Button {
+                    controller.toggleSettingsPanel()
+                } label: {
+                    Image(systemName: isSettingsPanelActive ? "xmark.circle.fill" : "gearshape.fill")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.92))
+                        .opacity(isSettingsPanelActive ? closeIconOpacity : settingsIconOpacity)
+                        .animation(.linear(duration: 0.16), value: isSettingsPanelActive)
+                        .frame(width: 30, height: 30)
+                        .background(Color.white.opacity(0.10), in: Circle())
+                }
+                .buttonStyle(.plain)
+                .help(isSettingsPanelActive ? "Close Settings" : "Open Settings")
             }
-            .buttonStyle(.plain)
-            .help(isSettingsPanelActive ? "Close Settings" : "Open Settings")
         }
         .padding(.bottom, 12)
+    }
+
+    private var expandedTitle: String {
+        if isSettingsPanelActive {
+            return "Settings"
+        }
+        if let status = approvalPanelStatus {
+            return status == .pending ? "Tool Approval" : "Approved"
+        }
+        return "Codex Sessions"
+    }
+
+    private var expandedSubtitle: String? {
+        guard let status = approvalPanelStatus else {
+            return nil
+        }
+
+        switch status {
+        case .pending:
+            return "Unsafe tool requires manual approval"
+        case .completed:
+            return "Approval queue cleared"
+        }
     }
 
     @ViewBuilder
@@ -329,10 +379,187 @@ struct IslandContentView: View {
             SettingsPanelView()
                 .environmentObject(settingsStore)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        } else if let status = approvalPanelStatus {
+            ApprovalPanelView(status: status)
+                .environmentObject(sessionController)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         } else {
             CodexSessionListView()
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
+    }
+}
+
+private struct ApprovalPanelView: View {
+    let status: ApprovalPanelStatus
+    @EnvironmentObject private var sessionController: CodexSessionController
+
+    var body: some View {
+        Group {
+            switch status {
+            case .pending:
+                if let toolCall = sessionController.pendingApprovalToolCall {
+                    pendingView(toolCall)
+                } else {
+                    completionView
+                }
+            case .completed:
+                completionView
+            }
+        }
+    }
+
+    private func pendingView(_ toolCall: CodexToolCall) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 8) {
+                approvalLabel("Tool", value: toolCall.toolName ?? toolCall.toolUseID ?? "-")
+
+                if let toolUseID = toolCall.toolUseID {
+                    approvalLabel("ID", value: toolUseID, monospaced: true)
+                }
+
+                if let command = toolCall.toolCommand {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Command")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.white.opacity(0.65))
+
+                        Text(command)
+                            .font(.caption.monospaced())
+                            .foregroundStyle(.white.opacity(0.9))
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(10)
+                            .lineLimit(4)
+                            .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    }
+                }
+            }
+
+            HStack(spacing: 10) {
+                Button("Deny") {
+                    sessionController.deny(toolCall)
+                }
+                .buttonStyle(.bordered)
+                .tint(.white.opacity(0.8))
+
+                Button("Approve") {
+                    sessionController.approve(toolCall)
+                }
+                .buttonStyle(.borderedProminent)
+            }
+            .padding(.top, 2)
+
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private var completionView: some View {
+        VStack(spacing: 14) {
+            ApprovalCompletionGlyph()
+
+            Text("Approval Complete")
+                .font(.headline)
+                .foregroundStyle(.white)
+
+            HStack(spacing: 12) {
+                decisionCountPill(
+                    label: "Approved",
+                    count: sessionController.approvalDecisionCounts.approved,
+                    color: .green
+                )
+                decisionCountPill(
+                    label: "Blocked",
+                    count: sessionController.approvalDecisionCounts.denied,
+                    color: .red
+                )
+            }
+
+            Text("All pending unsafe tools have been processed.")
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.65))
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func approvalLabel(_ title: String, value: String, monospaced: Bool = false) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.65))
+
+            Text(value)
+                .font(monospaced ? .caption.monospaced() : .caption)
+                .foregroundStyle(.white.opacity(0.9))
+                .lineLimit(2)
+                .textSelection(.enabled)
+        }
+    }
+
+    private func decisionCountPill(label: String, count: Int, color: Color) -> some View {
+        let accentColor: Color = count == 0 ? .gray : color
+
+        return VStack(spacing: 4) {
+            Text("\(count)")
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(.white)
+
+            Text(label)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.white.opacity(0.72))
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 10)
+        .background(accentColor.opacity(0.14), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(accentColor.opacity(0.28), lineWidth: 1)
+        }
+    }
+}
+
+private struct ApprovalCompletionGlyph: View {
+    @State private var trimEnd: CGFloat = 0
+    @State private var scale: CGFloat = 0.84
+    @State private var opacity: Double = 0.35
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .stroke(Color.white.opacity(0.12), lineWidth: 3)
+                .frame(width: 46, height: 46)
+
+            CheckmarkShape()
+                .trim(from: 0, to: trimEnd)
+                .stroke(
+                    Color.green,
+                    style: StrokeStyle(lineWidth: 4, lineCap: .round, lineJoin: .round)
+                )
+                .frame(width: 28, height: 24)
+        }
+        .scaleEffect(scale)
+        .opacity(opacity)
+        .onAppear {
+            withAnimation(.spring(response: 0.34, dampingFraction: 0.72)) {
+                scale = 1
+                opacity = 1
+            }
+            withAnimation(.easeOut(duration: 0.28).delay(0.08)) {
+                trimEnd = 1
+            }
+        }
+    }
+}
+
+private struct CheckmarkShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX + rect.width * 0.12, y: rect.midY + rect.height * 0.08))
+        path.addLine(to: CGPoint(x: rect.minX + rect.width * 0.40, y: rect.maxY - rect.height * 0.14))
+        path.addLine(to: CGPoint(x: rect.maxX - rect.width * 0.08, y: rect.minY + rect.height * 0.16))
+        return path
     }
 }
 

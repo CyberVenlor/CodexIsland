@@ -6,29 +6,47 @@ import Foundation
 final class CodexSessionController: ObservableObject {
     @Published private(set) var sessions: [CodexSessionGroup] = []
     @Published private(set) var runningSessionCount: Int = 0
+    @Published private(set) var pendingApprovalToolCall: CodexToolCall?
+    @Published private(set) var approvalDecisionCounts = ApprovalDecisionCounts()
 
     private let persistence: CodexSessionPersisting
     private let threadNameStore: CodexSessionThreadNameStore
     private let debugLogger: CodexHookDebugLogger
     private let launchedAt: Date
+    private let autoDenyLeadTime: TimeInterval
     private var pendingApprovalClients: [String: Int32] = [:]
     private var approvalQueue: [String] = []
     private var sessionIndex: [String: CodexRecentSession] = [:]
+    private var approvalTimeoutTasks: [String: Task<Void, Never>] = [:]
+    private var preToolUseTimeout: TimeInterval = 300
 
     init(
         persistence: CodexSessionPersisting = NoOpCodexSessionPersistence(),
         threadNameStore: CodexSessionThreadNameStore = CodexSessionThreadNameStore(),
         debugLogger: CodexHookDebugLogger = .disabled,
-        launchedAt: Date = Date()
+        launchedAt: Date = Date(),
+        autoDenyLeadTime: TimeInterval = 1
     ) {
         self.persistence = persistence
         self.threadNameStore = threadNameStore
         self.debugLogger = debugLogger
         self.launchedAt = launchedAt
+        self.autoDenyLeadTime = autoDenyLeadTime
+    }
+
+    deinit {
+        approvalTimeoutTasks.values.forEach { $0.cancel() }
+    }
+
+    func updateHookSettings(_ config: SettingsConfig) {
+        preToolUseTimeout = TimeInterval(max(1, config.preToolUseTimeout))
     }
 
     func handleIncomingPayload(_ data: Data, client: Int32) -> CodexHookRelayServer.PayloadDisposition {
         let pendingApproval = PendingApproval.decode(from: data)
+        if let pendingApproval {
+            beginApprovalCycleIfNeeded(with: pendingApproval.key)
+        }
 
         if let session = CodexSessionProjection.session(from: data) {
             upsert(session: session, pendingApprovalKey: pendingApproval?.key)
@@ -51,6 +69,7 @@ final class CodexSessionController: ObservableObject {
             approvalQueue.append(pendingApproval.key)
             publishVisibleSessions()
         }
+        scheduleApprovalTimeout(for: pendingApproval.key)
         debugLogger.log("registered pending approval for \(pendingApproval.key)")
         return .holdClient
     }
@@ -122,6 +141,7 @@ final class CodexSessionController: ObservableObject {
             }
         }
 
+        approvalDecisionCounts.record(status: approvalStatus)
         removeResolvedToolCall(withID: session.id, approvalKey: key)
     }
 
@@ -154,6 +174,7 @@ final class CodexSessionController: ObservableObject {
             debugLogger.log("failed to persist approval status for \(toolCall.id): \(error.localizedDescription)")
         }
 
+        approvalDecisionCounts.record(status: approvalStatus)
         removeResolvedToolCall(withID: toolCall.id, approvalKey: toolCall.id)
     }
 
@@ -267,6 +288,9 @@ final class CodexSessionController: ObservableObject {
         let visibleToolID = approvalQueue.first
         let allGroups = allSessionGroups(from: sessionIndex.values)
         runningSessionCount = allGroups.filter { $0.state == .running }.count
+        pendingApprovalToolCall = allGroups
+            .flatMap(\.toolCalls)
+            .first(where: { $0.id == visibleToolID })
 
         sessions = sortedSessionGroups(allGroups)
             .prefix(12)
@@ -288,10 +312,23 @@ final class CodexSessionController: ObservableObject {
             }
     }
 
+    var hasPendingApprovals: Bool {
+        pendingApprovalToolCall != nil
+    }
+
+    private func beginApprovalCycleIfNeeded(with key: String) {
+        guard approvalQueue.isEmpty, pendingApprovalClients[key] == nil else {
+            return
+        }
+
+        approvalDecisionCounts = ApprovalDecisionCounts()
+    }
+
     private func removeResolvedToolCall(withID id: String, approvalKey: String) {
         sessionIndex.removeValue(forKey: id)
         pendingApprovalClients.removeValue(forKey: approvalKey)
         approvalQueue.removeAll { $0 == approvalKey }
+        approvalTimeoutTasks.removeValue(forKey: approvalKey)?.cancel()
         publishVisibleSessions()
     }
 
@@ -307,20 +344,58 @@ final class CodexSessionController: ObservableObject {
 
         pendingApprovalClients.removeValue(forKey: approvalKey)
         approvalQueue.removeAll { $0 == approvalKey }
+        approvalTimeoutTasks.removeValue(forKey: approvalKey)?.cancel()
     }
 
     private func shouldDropApprovalTracking(forKey key: String) -> Bool {
         guard let session = sessionIndex[key] else {
             pendingApprovalClients.removeValue(forKey: key)
+            approvalTimeoutTasks.removeValue(forKey: key)?.cancel()
             return true
         }
 
         guard session.requiresApproval else {
             pendingApprovalClients.removeValue(forKey: key)
+            approvalTimeoutTasks.removeValue(forKey: key)?.cancel()
             return true
         }
 
         return false
+    }
+
+    private func scheduleApprovalTimeout(for key: String) {
+        approvalTimeoutTasks.removeValue(forKey: key)?.cancel()
+
+        let effectiveDelay = max(0.1, preToolUseTimeout - autoDenyLeadTime)
+        approvalTimeoutTasks[key] = Task { [weak self] in
+            let duration = UInt64(effectiveDelay * 1_000_000_000)
+            try? await Task.sleep(nanoseconds: duration)
+            guard !Task.isCancelled else {
+                return
+            }
+
+            await self?.autoDenyPendingApproval(forKey: key)
+        }
+    }
+
+    private func autoDenyPendingApproval(forKey key: String) {
+        guard
+            let session = sessionIndex[key],
+            session.requiresApproval,
+            pendingApprovalClients[key] != nil
+        else {
+            approvalTimeoutTasks.removeValue(forKey: key)?.cancel()
+            return
+        }
+
+        debugLogger.log("auto denying pending approval for \(key) before timeout")
+        resolve(
+            session,
+            relayResponse: .deny(
+                CodexHookResponse.denyToolUse(reason: "Timed out waiting for approval from CodexIsland")
+            ),
+            approvalStatus: "timed_out"
+        )
     }
 
     private func sessionTitle(for session: CodexRecentSession, threadName: String?) -> String {
@@ -329,6 +404,22 @@ final class CodexSessionController: ObservableObject {
         }
 
         return session.projectName
+    }
+}
+
+struct ApprovalDecisionCounts: Equatable {
+    var approved: Int = 0
+    var denied: Int = 0
+
+    mutating func record(status: String) {
+        switch status {
+        case "approved":
+            approved += 1
+        case "denied":
+            denied += 1
+        default:
+            break
+        }
     }
 }
 
@@ -359,7 +450,8 @@ private struct PendingApproval {
     static func decode(from data: Data) -> PendingApproval? {
         guard
             let invocation = try? CodexHookInvocation.decode(from: data),
-            case .preToolUse(let context) = invocation
+            case .preToolUse(let context) = invocation,
+            CodexCommandApprovalMatcher.requiresApproval(for: context)
         else {
             return nil
         }
