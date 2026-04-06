@@ -34,6 +34,10 @@ struct IslandView: View {
         .onChange(of: sessionController.pendingApprovalToolCall?.id) { newValue in
             controller.updateApprovalPresentation(hasPendingApproval: newValue != nil)
         }
+        .onChange(of: sessionController.sessionEndedNotification?.id) { newValue in
+            guard newValue != nil else { return }
+            controller.presentSessionEndedPanel()
+        }
         .contextMenu {
             ForEach(CollapsedIslandMode.allCases) { mode in
                 Button(mode.title(in: language)) {
@@ -312,6 +316,10 @@ struct IslandContentView: View {
         approvalPanelStatus != nil
     }
 
+    private var isSessionEndedPanelActive: Bool {
+        controller.activePanel == .sessionEnded
+    }
+
     private var settingsIconOpacity: Double {
         isSettingsPanelActive ? 0 : 1
     }
@@ -340,7 +348,7 @@ struct IslandContentView: View {
 
             Spacer()
 
-            if !isApprovalPanelActive {
+            if !isApprovalPanelActive && !isSessionEndedPanelActive {
                 Button {
                     controller.toggleSettingsPanel()
                 } label: {
@@ -367,6 +375,9 @@ struct IslandContentView: View {
         if isSettingsPanelActive {
             return l10n.text("Settings", chinese: "设置")
         }
+        if isSessionEndedPanelActive {
+            return l10n.text("Session Complete", chinese: "Session 已结束")
+        }
         if let status = approvalPanelStatus {
             return status == .pending
                 ? l10n.text("Tool Approval", chinese: "工具审批")
@@ -377,6 +388,9 @@ struct IslandContentView: View {
 
     private var expandedSubtitle: String? {
         guard let status = approvalPanelStatus else {
+            if isSessionEndedPanelActive {
+                return l10n.text("A Codex session just finished", chinese: "一个 Codex session 刚刚结束")
+            }
             return nil
         }
 
@@ -394,14 +408,70 @@ struct IslandContentView: View {
             SettingsPanelView()
                 .environmentObject(settingsStore)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        } else if controller.activePanel == .sessionEnded {
+            SessionEndedPanelView()
+                .environmentObject(sessionController)
+                .environmentObject(settingsStore)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         } else if let status = approvalPanelStatus {
             ApprovalPanelView(status: status)
                 .environmentObject(sessionController)
+                .environmentObject(settingsStore)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         } else {
             CodexSessionListView()
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
+    }
+}
+
+private struct SessionEndedPanelView: View {
+    @EnvironmentObject private var sessionController: CodexSessionController
+    @EnvironmentObject private var settingsStore: SettingsConfigStore
+
+    private var l10n: AppLocalization {
+        AppLocalization(language: settingsStore.config.appLanguage)
+    }
+
+    var body: some View {
+        let notification = sessionController.sessionEndedNotification
+
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(Color.blue.opacity(0.18))
+                        .frame(width: 42, height: 42)
+
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 22, weight: .semibold))
+                        .foregroundStyle(.blue)
+                }
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(notification?.title ?? l10n.text("Completed Session", chinese: "已完成 Session"))
+                        .font(.headline)
+                        .foregroundStyle(.white)
+                        .lineLimit(2)
+
+                    Text(notification?.projectName ?? "")
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.6))
+                        .lineLimit(1)
+                }
+            }
+
+            Text(l10n.text(
+                "The session has finished and returned a final response.",
+                chinese: "这个 session 已经结束，并返回了最终结果。"
+            ))
+            .font(.caption)
+            .foregroundStyle(.white.opacity(0.72))
+            .fixedSize(horizontal: false, vertical: true)
+
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 }
 

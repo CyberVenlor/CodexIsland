@@ -8,6 +8,7 @@ final class CodexSessionController: ObservableObject {
     @Published private(set) var runningSessionCount: Int = 0
     @Published private(set) var pendingApprovalToolCall: CodexToolCall?
     @Published private(set) var approvalDecisionCounts = ApprovalDecisionCounts()
+    @Published private(set) var sessionEndedNotification: SessionEndedNotification?
 
     private let persistence: CodexSessionPersisting
     private let threadNameStore: CodexSessionThreadNameStore
@@ -19,6 +20,7 @@ final class CodexSessionController: ObservableObject {
     private var sessionIndex: [String: CodexRecentSession] = [:]
     private var approvalTimeoutTasks: [String: Task<Void, Never>] = [:]
     private var preToolUseTimeout: TimeInterval = 300
+    private var showSessionEndNotifications = true
 
     init(
         persistence: CodexSessionPersisting = NoOpCodexSessionPersistence(),
@@ -40,6 +42,7 @@ final class CodexSessionController: ObservableObject {
 
     func updateHookSettings(_ config: SettingsConfig) {
         preToolUseTimeout = TimeInterval(max(1, config.preToolUseTimeout))
+        showSessionEndNotifications = config.showSessionEndNotifications
     }
 
     func handleIncomingPayload(_ data: Data, client: Int32) -> CodexHookRelayServer.PayloadDisposition {
@@ -183,6 +186,7 @@ final class CodexSessionController: ObservableObject {
             return
         }
 
+        let previous = sessionIndex[session.id]
         if let existing = sessionIndex[session.id] {
             sessionIndex[session.id] = CodexSessionProjection.merge(existing: existing, update: session)
         } else {
@@ -194,6 +198,7 @@ final class CodexSessionController: ObservableObject {
         }
 
         syncApprovalTracking(for: session)
+        publishSessionEndedNotificationIfNeeded(previous: previous, current: sessionIndex[session.id] ?? session)
 
         publishVisibleSessions()
     }
@@ -324,6 +329,20 @@ final class CodexSessionController: ObservableObject {
         approvalDecisionCounts = ApprovalDecisionCounts()
     }
 
+    private func publishSessionEndedNotificationIfNeeded(previous: CodexRecentSession?, current: CodexRecentSession) {
+        guard showSessionEndNotifications else { return }
+        guard current.toolUseID == nil else { return }
+        guard current.state == .completed else { return }
+        guard previous?.state != .completed else { return }
+
+        sessionEndedNotification = SessionEndedNotification(
+            id: UUID(),
+            sessionID: current.sessionID,
+            title: sessionTitle(for: current, threadName: threadNameStore.threadNamesBySessionID()[current.sessionID]),
+            projectName: current.projectName
+        )
+    }
+
     private func removeResolvedToolCall(withID id: String, approvalKey: String) {
         sessionIndex.removeValue(forKey: id)
         pendingApprovalClients.removeValue(forKey: approvalKey)
@@ -421,6 +440,13 @@ struct ApprovalDecisionCounts: Equatable {
             break
         }
     }
+}
+
+struct SessionEndedNotification: Equatable, Identifiable {
+    let id: UUID
+    let sessionID: String
+    let title: String
+    let projectName: String
 }
 
 private struct CodexHookRelayResponse: Codable {

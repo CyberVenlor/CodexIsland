@@ -26,6 +26,7 @@ enum ExpandedIslandPanel: Equatable {
     case sessions
     case settings
     case approval(status: ApprovalPanelStatus)
+    case sessionEnded
 }
 
 enum ApprovalPanelStatus: Equatable {
@@ -47,6 +48,7 @@ final class IslandController: ObservableObject {
     private static let hoverExitDelay: TimeInterval = 0.40
     private static let hoverToggleCooldown: TimeInterval = 0.24
     private static let approvalCompletionDisplayDuration: TimeInterval = 1.8
+    private static let sessionEndedDisplayDuration: TimeInterval = 2.2
 
     @Published var collapsedMode: CollapsedIslandMode = .detailed
     @Published private(set) var isExpanded = false
@@ -55,9 +57,11 @@ final class IslandController: ObservableObject {
     private var pendingCollapse: DispatchWorkItem?
     private var pendingTransition: DispatchWorkItem?
     private var pendingApprovalCompletion: DispatchWorkItem?
+    private var pendingSessionEndedDismissal: DispatchWorkItem?
     private var lastTransitionAt: Date = .distantPast
     private var targetExpandedState = false
     private var approvalPresentationLocked = false
+    private var transientPresentationLocked = false
 
     let items: [IslandListItem] = [
         IslandListItem(title: "Now Playing", subtitle: "Ambient mix queued for focus mode", systemImage: "music.note"),
@@ -74,7 +78,7 @@ final class IslandController: ObservableObject {
     }
 
     func handleHoverChange(_ isHovering: Bool) {
-        guard !approvalPresentationLocked else { return }
+        guard !approvalPresentationLocked, !transientPresentationLocked else { return }
         pendingCollapse?.cancel()
         pendingCollapse = nil
         targetExpandedState = isHovering
@@ -111,7 +115,7 @@ final class IslandController: ObservableObject {
 
     func collapse(resetActivePanel: Bool = true) {
         guard isExpanded else { return }
-        guard !approvalPresentationLocked else { return }
+        guard !approvalPresentationLocked, !transientPresentationLocked else { return }
         guard canTransitionNow else {
             scheduleTransitionRetry(for: false)
             return
@@ -127,7 +131,7 @@ final class IslandController: ObservableObject {
     }
 
     func toggleSettingsPanel() {
-        guard isExpanded, !approvalPresentationLocked else { return }
+        guard isExpanded, !approvalPresentationLocked, !transientPresentationLocked else { return }
 
         withAnimation(Self.expandAnimation) {
             activePanel = activePanel == .settings ? .sessions : .settings
@@ -135,6 +139,10 @@ final class IslandController: ObservableObject {
     }
 
     func updateApprovalPresentation(hasPendingApproval: Bool) {
+        pendingSessionEndedDismissal?.cancel()
+        pendingSessionEndedDismissal = nil
+        transientPresentationLocked = false
+
         pendingApprovalCompletion?.cancel()
         pendingApprovalCompletion = nil
 
@@ -172,6 +180,37 @@ final class IslandController: ObservableObject {
         DispatchQueue.main.asyncAfter(
             deadline: .now() + Self.approvalCompletionDisplayDuration,
             execute: completionWorkItem
+        )
+    }
+
+    func presentSessionEndedPanel() {
+        guard !approvalPresentationLocked else { return }
+        guard !isExpanded else { return }
+
+        pendingSessionEndedDismissal?.cancel()
+        pendingSessionEndedDismissal = nil
+        transientPresentationLocked = true
+        targetExpandedState = true
+
+        expand()
+        withAnimation(Self.expandAnimation) {
+            activePanel = .sessionEnded
+        }
+
+        let dismissWorkItem = DispatchWorkItem { [weak self] in
+            Task { @MainActor in
+                guard let self else { return }
+                self.transientPresentationLocked = false
+                self.targetExpandedState = false
+                self.collapse(resetActivePanel: false)
+                self.activePanel = .sessions
+            }
+        }
+
+        pendingSessionEndedDismissal = dismissWorkItem
+        DispatchQueue.main.asyncAfter(
+            deadline: .now() + Self.sessionEndedDisplayDuration,
+            execute: dismissWorkItem
         )
     }
 

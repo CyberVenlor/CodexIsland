@@ -117,6 +117,13 @@ struct SettingsPanelView: View {
                 Toggle(l10n.text("Launch at login", chinese: "登录时启动"), isOn: $settingsStore.config.launchAtLogin)
             }
 
+            settingsCard(l10n.text("Notifications", chinese: "提示")) {
+                Toggle(
+                    l10n.text("Show session end island", chinese: "显示 session 结束提示"),
+                    isOn: $settingsStore.config.showSessionEndNotifications
+                )
+            }
+
             settingsCard(l10n.text("System", chinese: "系统")) {
                 settingsValueRow(l10n.text("Status", chinese: "状态"), value: l10n.text("Ready", chinese: "就绪"))
                 settingsValueRow(l10n.text("Version", chinese: "版本"), value: "1.0.0")

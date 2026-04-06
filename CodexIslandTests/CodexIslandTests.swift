@@ -66,6 +66,21 @@ struct CodexIslandTests {
     }
 
     @MainActor
+    @Test func sessionEndedPanelExpandsThenReturnsToCollapsedState() async throws {
+        let islandController = IslandController()
+
+        islandController.presentSessionEndedPanel()
+
+        #expect(islandController.isExpanded == true)
+        #expect(islandController.activePanel == .sessionEnded)
+
+        try await Task.sleep(for: .milliseconds(2300))
+
+        #expect(islandController.isExpanded == false)
+        #expect(islandController.activePanel == .sessions)
+    }
+
+    @MainActor
     @Test func approvalDecisionCountsTrackApprovedAndDeniedTools() async throws {
         let controller = CodexSessionController(
             threadNameStore: CodexSessionThreadNameStore(
@@ -104,6 +119,54 @@ struct CodexIslandTests {
         #expect(controller.approvalDecisionCounts.approved == 1)
         #expect(controller.approvalDecisionCounts.denied == 1)
         #expect(controller.pendingApprovalToolCall == nil)
+    }
+
+    @MainActor
+    @Test func completedStopPublishesSessionEndedNotification() async throws {
+        let controller = CodexSessionController(
+            threadNameStore: CodexSessionThreadNameStore(
+                databaseURL: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString),
+                indexURL: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            )
+        )
+
+        controller.updateHookSettings(SettingsConfig())
+
+        _ = controller.handleIncomingPayload(
+            userPromptPayload(sessionID: "session-1"),
+            client: -1
+        )
+        _ = controller.handleIncomingPayload(
+            stopPayload(sessionID: "session-1", stopHookActive: false),
+            client: -1
+        )
+
+        #expect(controller.sessionEndedNotification?.sessionID == "session-1")
+    }
+
+    @MainActor
+    @Test func completedStopDoesNotPublishSessionEndedNotificationWhenDisabled() async throws {
+        let controller = CodexSessionController(
+            threadNameStore: CodexSessionThreadNameStore(
+                databaseURL: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString),
+                indexURL: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            )
+        )
+
+        var config = SettingsConfig()
+        config.showSessionEndNotifications = false
+        controller.updateHookSettings(config)
+
+        _ = controller.handleIncomingPayload(
+            userPromptPayload(sessionID: "session-1"),
+            client: -1
+        )
+        _ = controller.handleIncomingPayload(
+            stopPayload(sessionID: "session-1", stopHookActive: false),
+            client: -1
+        )
+
+        #expect(controller.sessionEndedNotification == nil)
     }
 
     @MainActor
@@ -608,6 +671,35 @@ private func preToolUsePayload(sessionID: String, toolUseID: String, command: St
       "tool_input": {
         "command": "\(command)"
       }
+    }
+    """.data(using: .utf8)!
+}
+
+private func userPromptPayload(sessionID: String) -> Data {
+    """
+    {
+      "session_id": "\(sessionID)",
+      "transcript_path": "/tmp/transcript.jsonl",
+      "cwd": "/tmp/CodexIsland",
+      "hook_event_name": "UserPromptSubmit",
+      "model": "gpt-5.4",
+      "permission_mode": "default",
+      "turn_id": "turn-1",
+      "prompt": "test"
+    }
+    """.data(using: .utf8)!
+}
+
+private func stopPayload(sessionID: String, stopHookActive: Bool) -> Data {
+    """
+    {
+      "session_id": "\(sessionID)",
+      "transcript_path": "/tmp/transcript.jsonl",
+      "cwd": "/tmp/CodexIsland",
+      "hook_event_name": "Stop",
+      "model": "gpt-5.4",
+      "stop_hook_active": \(stopHookActive ? "true" : "false"),
+      "last_assistant_message": "done"
     }
     """.data(using: .utf8)!
 }
