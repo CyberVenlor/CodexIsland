@@ -256,6 +256,102 @@ struct CodexIslandTests {
     }
 
     @MainActor
+    @Test func pipedReadOnlyCommandsDoNotRequireApproval() async throws {
+        let controller = CodexSessionController(
+            threadNameStore: CodexSessionThreadNameStore(
+                databaseURL: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString),
+                indexURL: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            )
+        )
+
+        let payload = """
+        {
+          "session_id": "session-1",
+          "transcript_path": "/tmp/transcript.jsonl",
+          "cwd": "/tmp/CodexIsland",
+          "hook_event_name": "PreToolUse",
+          "model": "gpt-5.4",
+          "permission_mode": "default",
+          "turn_id": "turn-1",
+          "tool_name": "Bash",
+          "tool_use_id": "tool-1",
+          "tool_input": {
+            "command": "rg foo Sources | head -n 5"
+          }
+        }
+        """.data(using: .utf8)!
+
+        let disposition = controller.handleIncomingPayload(payload, client: -1)
+
+        #expect(disposition == .closeClient)
+        #expect(controller.sessions.first?.toolCalls.isEmpty == true)
+    }
+
+    @MainActor
+    @Test func ifBlockWithReadOnlyCommandsDoesNotRequireApproval() async throws {
+        let controller = CodexSessionController(
+            threadNameStore: CodexSessionThreadNameStore(
+                databaseURL: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString),
+                indexURL: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            )
+        )
+
+        let payload = """
+        {
+          "session_id": "session-1",
+          "transcript_path": "/tmp/transcript.jsonl",
+          "cwd": "/tmp/CodexIsland",
+          "hook_event_name": "PreToolUse",
+          "model": "gpt-5.4",
+          "permission_mode": "default",
+          "turn_id": "turn-1",
+          "tool_name": "Bash",
+          "tool_use_id": "tool-1",
+          "tool_input": {
+            "command": "if rg foo Sources; then head -n 1 README.md; fi"
+          }
+        }
+        """.data(using: .utf8)!
+
+        let disposition = controller.handleIncomingPayload(payload, client: -1)
+
+        #expect(disposition == .closeClient)
+        #expect(controller.sessions.first?.toolCalls.isEmpty == true)
+    }
+
+    @MainActor
+    @Test func envPrefixedReadOnlyCommandDoesNotRequireApproval() async throws {
+        let controller = CodexSessionController(
+            threadNameStore: CodexSessionThreadNameStore(
+                databaseURL: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString),
+                indexURL: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            )
+        )
+
+        let payload = """
+        {
+          "session_id": "session-1",
+          "transcript_path": "/tmp/transcript.jsonl",
+          "cwd": "/tmp/CodexIsland",
+          "hook_event_name": "PreToolUse",
+          "model": "gpt-5.4",
+          "permission_mode": "default",
+          "turn_id": "turn-1",
+          "tool_name": "Bash",
+          "tool_use_id": "tool-1",
+          "tool_input": {
+            "command": "FOO=1 swift test"
+          }
+        }
+        """.data(using: .utf8)!
+
+        let disposition = controller.handleIncomingPayload(payload, client: -1)
+
+        #expect(disposition == .closeClient)
+        #expect(controller.sessions.first?.toolCalls.isEmpty == true)
+    }
+
+    @MainActor
     @Test func destructivePreToolUseCommandStillRequiresApproval() async throws {
         let controller = CodexSessionController(
             threadNameStore: CodexSessionThreadNameStore(
