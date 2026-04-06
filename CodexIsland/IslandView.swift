@@ -634,6 +634,8 @@ private struct AnimatedSpriteIcon: View {
 }
 
 private struct SpritePlaybackState {
+    private static let transitionStartDelay: TimeInterval = 1.0
+
     private enum ActiveClip {
         case loop(SpriteLoopState)
         case transition(SpriteAnimationClip)
@@ -643,6 +645,7 @@ private struct SpritePlaybackState {
     private var desiredLoop: SpriteLoopState
     private var activeClip: ActiveClip
     private var clipStartedAt: Date = .now
+    private var pendingTransitionBecameVisibleAt: Date?
 
     init(initialLoop: SpriteLoopState) {
         currentLoop = initialLoop
@@ -668,6 +671,9 @@ private struct SpritePlaybackState {
         at date: Date,
         using catalog: SpriteAnimationCatalog
     ) {
+        if desiredLoop != loop {
+            pendingTransitionBecameVisibleAt = nil
+        }
         desiredLoop = loop
 
         if !isVisible, catalog.transitionClip(from: currentLoop, to: desiredLoop) == nil {
@@ -677,27 +683,29 @@ private struct SpritePlaybackState {
             return
         }
 
-        if isVisible {
-            startPendingChangeIfNeeded(at: date, using: catalog)
-        }
+        _ = startPendingChangeIfNeeded(at: date, isVisible: isVisible, using: catalog)
     }
 
     mutating func handleVisibilityChange(_ isVisible: Bool, at date: Date, using catalog: SpriteAnimationCatalog) {
-        guard isVisible else { return }
-        startPendingChangeIfNeeded(at: date, using: catalog)
+        if !isVisible {
+            pendingTransitionBecameVisibleAt = nil
+            return
+        }
+
+        _ = startPendingChangeIfNeeded(at: date, isVisible: true, using: catalog)
     }
 
     mutating func tick(at date: Date, isVisible: Bool, using catalog: SpriteAnimationCatalog) {
-        guard isVisible else { return }
-
         let frames = activeFrames(using: catalog)
         guard !frames.isEmpty else { return }
 
         switch activeClip {
         case .loop:
-            _ = startPendingChangeIfNeeded(at: date, using: catalog)
+            _ = startPendingChangeIfNeeded(at: date, isVisible: isVisible, using: catalog)
 
         case .transition(let clip):
+            guard isVisible else { return }
+
             let elapsedFrames = elapsedFrameCount(at: date, using: catalog)
             if elapsedFrames < frames.count {
                 return
@@ -708,12 +716,18 @@ private struct SpritePlaybackState {
             }
             activeClip = .loop(currentLoop)
             clipStartedAt = date
-            _ = startPendingChangeIfNeeded(at: date, using: catalog)
+            pendingTransitionBecameVisibleAt = nil
+            _ = startPendingChangeIfNeeded(at: date, isVisible: isVisible, using: catalog)
         }
     }
 
-    private mutating func startPendingChangeIfNeeded(at date: Date, using catalog: SpriteAnimationCatalog) -> Bool {
+    private mutating func startPendingChangeIfNeeded(
+        at date: Date,
+        isVisible: Bool,
+        using catalog: SpriteAnimationCatalog
+    ) -> Bool {
         guard desiredLoop != currentLoop else {
+            pendingTransitionBecameVisibleAt = nil
             if case .loop(let loop) = activeClip, loop == currentLoop {
                 return false
             }
@@ -727,14 +741,34 @@ private struct SpritePlaybackState {
         }
 
         if let transition = catalog.transitionClip(from: currentLoop, to: desiredLoop) {
+            guard isVisible else {
+                pendingTransitionBecameVisibleAt = nil
+                return false
+            }
+
+            if pendingTransitionBecameVisibleAt == nil {
+                pendingTransitionBecameVisibleAt = date
+                return false
+            }
+
+            guard let pendingTransitionBecameVisibleAt else {
+                return false
+            }
+
+            guard date.timeIntervalSince(pendingTransitionBecameVisibleAt) >= Self.transitionStartDelay else {
+                return false
+            }
+
             activeClip = .transition(transition)
             clipStartedAt = date
+            self.pendingTransitionBecameVisibleAt = nil
             return true
         }
 
         currentLoop = desiredLoop
         activeClip = .loop(currentLoop)
         clipStartedAt = date
+        pendingTransitionBecameVisibleAt = nil
         return true
     }
 

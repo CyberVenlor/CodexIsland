@@ -102,6 +102,14 @@ final class SpriteAnimationCatalog {
         transitions[TransitionKey(from: from, to: to)]
     }
 
+    func transitionDuration(from: SpriteLoopState, to: SpriteLoopState) -> TimeInterval {
+        guard let clip = transitionClip(from: from, to: to), !clip.frames.isEmpty else {
+            return 0
+        }
+
+        return Double(clip.frames.count) / max(clip.framesPerSecond, 0.1)
+    }
+
     private static func sliceFrames(
         from image: CGImage,
         frameWidth: Int,

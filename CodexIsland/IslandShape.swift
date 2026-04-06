@@ -12,7 +12,7 @@ struct IslandShellStyle: Equatable {
         switch state {
         case .collapsed(.detailed):
             IslandShellStyle(
-                size: CGSize(width: 240, height: 32),
+                size: CGSize(width: 240, height: 33),
                 topRadius: 6,
                 bottomRadius: 12,
                 backgroundOpacity: 1.0,
@@ -21,7 +21,7 @@ struct IslandShellStyle: Equatable {
             )
         case .collapsed(.simplified):
             IslandShellStyle(
-                size: CGSize(width: 208, height: 32),
+                size: CGSize(width: 208, height: 33),
                 topRadius: 14,
                 bottomRadius: 20,
                 backgroundOpacity: 1.0,
