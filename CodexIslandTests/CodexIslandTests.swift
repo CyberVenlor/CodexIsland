@@ -273,6 +273,7 @@ struct CodexIslandTests {
             updatedAt: Date(),
             state: .running,
             source: .cli,
+            rolloutPath: "/tmp/rollout.jsonl",
             cwd: "/tmp/CodexIsland",
             model: "gpt-5.4",
             transcriptPath: "/tmp/transcript.jsonl",

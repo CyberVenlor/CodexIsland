@@ -38,6 +38,7 @@ struct CodexSessionGroup: Identifiable, Equatable {
     let updatedAt: Date
     let state: CodexSessionState
     let source: CodexThreadSource?
+    let rolloutPath: String?
     let cwd: String
     let model: String
     let transcriptPath: String?

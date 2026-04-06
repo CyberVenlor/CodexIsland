@@ -708,6 +708,18 @@ struct CodexSessionListView: View {
                 Spacer()
 
                 HStack(spacing: 8) {
+                    if canOpen(session) {
+                        Button {
+                            _ = sessionController.openSession(session)
+                        } label: {
+                            Image(systemName: "arrow.up.forward.app")
+                                .font(.caption.weight(.semibold))
+                        }
+                        .buttonStyle(.borderless)
+                        .foregroundStyle(.secondary)
+
+                    }
+
                     Text(session.projectName)
                         .font(.caption.weight(.medium))
                         .foregroundStyle(.secondary)

@@ -21,6 +21,7 @@ enum CodexThreadSource: Equatable {
 struct CodexThreadMetadata: Equatable {
     var title: String?
     var source: CodexThreadSource?
+    var rolloutPath: String?
 }
 
 struct CodexSessionThreadNameStore {
@@ -81,7 +82,7 @@ struct CodexSessionThreadNameStore {
         }
         defer { sqlite3_close(database) }
 
-        let query = "SELECT id, title, source FROM threads WHERE archived = 0;"
+        let query = "SELECT id, title, source, rollout_path FROM threads WHERE archived = 0;"
         var statement: OpaquePointer?
         guard sqlite3_prepare_v2(database, query, -1, &statement, nil) == SQLITE_OK else {
             sqlite3_finalize(statement)
@@ -103,6 +104,8 @@ struct CodexSessionThreadNameStore {
             let title = String(cString: titlePointer).trimmingCharacters(in: .whitespacesAndNewlines)
             let source = sqlite3_column_text(statement, 2).map { String(cString: $0) }
                 .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            let rolloutPath = sqlite3_column_text(statement, 3).map { String(cString: $0) }
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
 
             guard !id.isEmpty, !title.isEmpty else {
                 continue
@@ -110,7 +113,8 @@ struct CodexSessionThreadNameStore {
 
             result[id] = CodexThreadMetadata(
                 title: title,
-                source: source.map(CodexThreadSource.init(rawValue:))
+                source: source.map(CodexThreadSource.init(rawValue:)),
+                rolloutPath: rolloutPath
             )
         }
 
