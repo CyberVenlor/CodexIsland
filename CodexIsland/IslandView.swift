@@ -501,7 +501,7 @@ private struct ApprovalPanelView: View {
     private func decisionCountPill(label: String, count: Int, color: Color) -> some View {
         let accentColor: Color = count == 0 ? .gray : color
 
-        VStack(spacing: 4) {
+        return VStack(spacing: 4) {
             Text("\(count)")
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(.white)
