@@ -879,22 +879,14 @@ struct CodexSessionListView: View {
             }
 
             if let lastUserPrompt = session.lastUserPrompt, !lastUserPrompt.isEmpty {
-                Text("prompt: \(lastUserPrompt)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
+                sessionDetailBox("prompt: \(lastUserPrompt)")
             }
 
             if let lastAssistantMessage = session.lastAssistantMessage, !lastAssistantMessage.isEmpty {
-                Text("reply: \(lastAssistantMessage)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
+                sessionDetailBox("reply: \(lastAssistantMessage)")
             }
 
-            Text(session.updatedAt.formatted(date: .abbreviated, time: .shortened))
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            sessionDetailBox("time: \(session.updatedAt.formatted(date: .abbreviated, time: .shortened))")
         }
         .padding(14)
         .background(
@@ -915,6 +907,19 @@ struct CodexSessionListView: View {
         } else {
             content
         }
+    }
+
+    private func sessionDetailBox(_ text: String) -> some View {
+        Text(text)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(2)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(8)
+            .background(
+                Color.secondary.opacity(0.08),
+                in: RoundedRectangle(cornerRadius: toolCallCornerRadius, style: .continuous)
+            )
     }
 
     private func stateColor(for state: CodexSessionState) -> Color {
