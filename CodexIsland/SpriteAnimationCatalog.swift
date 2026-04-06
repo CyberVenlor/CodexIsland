@@ -201,6 +201,16 @@ final class SpriteAnimationCatalog {
                     from: "idle",
                     to: "sleep"
                 ),
+                SpriteAnimationManifestEntry(
+                    name: "sleepToIdle",
+                    file: "sleep_to_idle.png",
+                    asset: "sleep_to_idle",
+                    frames: 15,
+                    fps: 10,
+                    loop: false,
+                    from: "sleep",
+                    to: "idle"
+                ),
             ]
         )
     }

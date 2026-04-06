@@ -579,14 +579,16 @@ private struct AnimatedSpriteIcon: View {
     let color: Color
     let hasRunningSessions: Bool
     let isVisible: Bool
+    let scale: CGFloat
 
     @State private var playbackState: SpritePlaybackState
     private let catalog = SpriteAnimationCatalog.shared
 
-    init(color: Color, hasRunningSessions: Bool, isVisible: Bool) {
+    init(color: Color, hasRunningSessions: Bool, isVisible: Bool, scale: CGFloat = 1) {
         self.color = color
         self.hasRunningSessions = hasRunningSessions
         self.isVisible = isVisible
+        self.scale = scale
         _playbackState = State(
             initialValue: SpritePlaybackState(initialLoop: hasRunningSessions ? .idle : .sleep)
         )
@@ -606,7 +608,7 @@ private struct AnimatedSpriteIcon: View {
                             .luminanceToAlpha()
                     }
                 }
-                .scaleEffect(catalog.displayScale, anchor: .center)
+                .scaleEffect(catalog.displayScale * scale, anchor: .center)
                 .onAppear {
                     playbackState.syncDesiredLoop(
                         hasRunningSessions ? .idle : .sleep,
@@ -1296,13 +1298,12 @@ struct CodexSessionListView: View {
         .background(Color.clear)
         .overlay {
             if sessionController.sessions.isEmpty {
-                ContentUnavailableView(
-                    l10n.text("No Codex Sessions", chinese: "没有 Codex 会话"),
-                    systemImage: "bolt.slash",
-                    description: Text(l10n.text(
+                EmptySessionStateView(
+                    title: l10n.text("No Codex Sessions", chinese: "没有 Codex 会话"),
+                    description: l10n.text(
                         "Only sessions received after this app launch are tracked.",
                         chinese: "只会跟踪本次启动应用后收到的会话。"
-                    ))
+                    )
                 )
             }
         }
@@ -1493,6 +1494,32 @@ struct CodexSessionListView: View {
         case .other, .none:
             return false
         }
+    }
+}
+
+private struct EmptySessionStateView: View {
+    let title: String
+    let description: String
+
+    var body: some View {
+        VStack(spacing: 14) {
+            AnimatedSpriteIcon(
+                color: .blue,
+                hasRunningSessions: false,
+                isVisible: true,
+                scale: 4
+            )
+            .frame(width: 88, height: 88)
+
+            Text(title)
+                .font(.headline)
+
+            Text(description)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: 260)
     }
 }
 
