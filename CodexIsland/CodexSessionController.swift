@@ -6,6 +6,7 @@ import Foundation
 final class CodexSessionController: ObservableObject {
     @Published private(set) var sessions: [CodexSessionGroup] = []
     @Published private(set) var runningSessionCount: Int = 0
+    @Published private(set) var pendingApprovalToolCall: CodexToolCall?
 
     private let persistence: CodexSessionPersisting
     private let threadNameStore: CodexSessionThreadNameStore
@@ -267,6 +268,9 @@ final class CodexSessionController: ObservableObject {
         let visibleToolID = approvalQueue.first
         let allGroups = allSessionGroups(from: sessionIndex.values)
         runningSessionCount = allGroups.filter { $0.state == .running }.count
+        pendingApprovalToolCall = allGroups
+            .flatMap(\.toolCalls)
+            .first(where: { $0.id == visibleToolID })
 
         sessions = sortedSessionGroups(allGroups)
             .prefix(12)
@@ -286,6 +290,10 @@ final class CodexSessionController: ObservableObject {
                     toolCalls: group.toolCalls.filter { $0.id == visibleToolID }
                 )
             }
+    }
+
+    var hasPendingApprovals: Bool {
+        pendingApprovalToolCall != nil
     }
 
     private func removeResolvedToolCall(withID id: String, approvalKey: String) {

@@ -37,6 +37,15 @@ struct IslandShellStyle: Equatable {
                 strokeOpacity: 0.12,
                 shadowOpacity: 0.26
             )
+        case .expanded(.approval(_)):
+            IslandShellStyle(
+                size: CGSize(width: 360, height: 212),
+                topRadius: 8,
+                bottomRadius: 20,
+                backgroundOpacity: 1.0,
+                strokeOpacity: 0.14,
+                shadowOpacity: 0.24
+            )
         case .expanded(.settings):
             IslandShellStyle(
                 size: CGSize(width: 560, height: 420),

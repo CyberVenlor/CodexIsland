@@ -13,6 +13,42 @@ import Testing
 struct CodexIslandTests {
 
     @MainActor
+    @Test func collapsedIslandEntersApprovalPanelWhenUnsafeToolIsPending() async throws {
+        let islandController = IslandController()
+
+        islandController.updateApprovalPresentation(hasPendingApproval: true)
+
+        #expect(islandController.isExpanded == true)
+        #expect(islandController.activePanel == .approval(status: .pending))
+    }
+
+    @MainActor
+    @Test func expandedIslandDoesNotAutoSwitchIntoApprovalPanel() async throws {
+        let islandController = IslandController()
+
+        islandController.expand()
+        islandController.updateApprovalPresentation(hasPendingApproval: true)
+
+        #expect(islandController.isExpanded == true)
+        #expect(islandController.activePanel == .sessions)
+    }
+
+    @MainActor
+    @Test func approvalPanelCompletesThenReturnsToCollapsedState() async throws {
+        let islandController = IslandController()
+
+        islandController.updateApprovalPresentation(hasPendingApproval: true)
+        islandController.updateApprovalPresentation(hasPendingApproval: false)
+
+        #expect(islandController.activePanel == .approval(status: .completed))
+
+        try await Task.sleep(for: .milliseconds(950))
+
+        #expect(islandController.isExpanded == false)
+        #expect(islandController.activePanel == .sessions)
+    }
+
+    @MainActor
     @Test func sessionListUsesThreadNameAsTitle() async throws {
         let directoryURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
