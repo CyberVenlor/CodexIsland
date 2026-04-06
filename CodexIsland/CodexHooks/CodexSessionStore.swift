@@ -50,6 +50,7 @@ struct CodexSessionGroup: Identifiable, Equatable {
 
 enum CodexSessionState: Equatable {
     case running
+    case suspicious
     case idle
     case completed
     case unknown(String)
@@ -58,6 +59,8 @@ enum CodexSessionState: Equatable {
         switch self {
         case .running:
             return "running"
+        case .suspicious:
+            return "suspicious"
         case .idle:
             return "idle"
         case .completed:
@@ -294,6 +297,8 @@ private struct HookSessionEntry: Codable, Equatable {
         switch state {
         case "running":
             return .running
+        case "suspicious":
+            return .suspicious
         case "idle":
             return .idle
         case "completed":

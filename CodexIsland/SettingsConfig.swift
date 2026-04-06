@@ -9,6 +9,7 @@ struct SettingsConfig: Codable {
     var enablePreToolUseHook = true
     var enablePostToolUseHook = false
     var preToolUseTimeout = 300
+    var suspiciousSessionTimeout = 60
     var showSessionEndNotifications = true
 
     private enum CodingKeys: String, CodingKey {
@@ -19,6 +20,7 @@ struct SettingsConfig: Codable {
         case enablePreToolUseHook
         case enablePostToolUseHook
         case preToolUseTimeout
+        case suspiciousSessionTimeout
         case showSessionEndNotifications
         case legacyEnablePreHook = "enablePreHook"
         case legacyEnablePostHook = "enablePostHook"
@@ -39,6 +41,7 @@ struct SettingsConfig: Codable {
             ?? container.decodeIfPresent(Bool.self, forKey: .legacyEnablePostHook)
             ?? false
         preToolUseTimeout = max(1, try container.decodeIfPresent(Int.self, forKey: .preToolUseTimeout) ?? 300)
+        suspiciousSessionTimeout = max(1, try container.decodeIfPresent(Int.self, forKey: .suspiciousSessionTimeout) ?? 60)
         showSessionEndNotifications = try container.decodeIfPresent(Bool.self, forKey: .showSessionEndNotifications) ?? true
     }
 
@@ -51,6 +54,7 @@ struct SettingsConfig: Codable {
         try container.encode(enablePreToolUseHook, forKey: .enablePreToolUseHook)
         try container.encode(enablePostToolUseHook, forKey: .enablePostToolUseHook)
         try container.encode(preToolUseTimeout, forKey: .preToolUseTimeout)
+        try container.encode(suspiciousSessionTimeout, forKey: .suspiciousSessionTimeout)
         try container.encode(showSessionEndNotifications, forKey: .showSessionEndNotifications)
     }
 }

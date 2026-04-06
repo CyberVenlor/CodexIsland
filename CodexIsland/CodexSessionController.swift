@@ -9,6 +9,7 @@ final class CodexSessionController: ObservableObject {
     @Published private(set) var pendingApprovalToolCall: CodexToolCall?
     @Published private(set) var approvalDecisionCounts = ApprovalDecisionCounts()
     @Published private(set) var sessionEndedNotification: SessionEndedNotification?
+    @Published private(set) var suspiciousSessionNotification: SuspiciousSessionNotification?
 
     private let persistence: CodexSessionPersisting
     private let threadNameStore: CodexSessionThreadNameStore
@@ -20,7 +21,9 @@ final class CodexSessionController: ObservableObject {
     private var approvalQueue: [String] = []
     private var sessionIndex: [String: CodexRecentSession] = [:]
     private var approvalTimeoutTasks: [String: Task<Void, Never>] = [:]
+    private var suspiciousSessionTasks: [String: Task<Void, Never>] = [:]
     private var preToolUseTimeout: TimeInterval = 300
+    private var suspiciousSessionTimeout: TimeInterval = 60
     private var showSessionEndNotifications = true
 
     init(
@@ -41,11 +44,14 @@ final class CodexSessionController: ObservableObject {
 
     deinit {
         approvalTimeoutTasks.values.forEach { $0.cancel() }
+        suspiciousSessionTasks.values.forEach { $0.cancel() }
     }
 
     func updateHookSettings(_ config: SettingsConfig) {
         preToolUseTimeout = TimeInterval(max(1, config.preToolUseTimeout))
+        suspiciousSessionTimeout = TimeInterval(max(1, config.suspiciousSessionTimeout))
         showSessionEndNotifications = config.showSessionEndNotifications
+        rescheduleSuspiciousSessionTracking()
     }
 
     func handleIncomingPayload(_ data: Data, client: Int32) -> CodexHookRelayServer.PayloadDisposition {
@@ -200,12 +206,14 @@ final class CodexSessionController: ObservableObject {
         } else {
             sessionIndex[session.id] = session
         }
+        upsertSessionSummaryActivity(from: session)
 
         if let pendingApprovalKey, !approvalQueue.contains(pendingApprovalKey) {
             approvalQueue.append(pendingApprovalKey)
         }
 
         syncApprovalTracking(for: session)
+        syncSuspiciousSessionTracking(for: sessionIndex[session.sessionID] ?? sessionIndex[session.id] ?? session)
         publishSessionEndedNotificationIfNeeded(previous: previous, current: sessionIndex[session.id] ?? session)
 
         publishVisibleSessions()
@@ -286,12 +294,14 @@ final class CodexSessionController: ObservableObject {
         switch state {
         case .running:
             return 0
-        case .idle:
+        case .suspicious:
             return 1
-        case .completed:
+        case .idle:
             return 2
-        case .unknown:
+        case .completed:
             return 3
+        case .unknown:
+            return 4
         }
     }
 
@@ -302,7 +312,7 @@ final class CodexSessionController: ObservableObject {
 
         let visibleToolID = approvalQueue.first
         let allGroups = allSessionGroups(from: sessionIndex.values)
-        runningSessionCount = allGroups.filter { $0.state == .running }.count
+        runningSessionCount = allGroups.filter { $0.state == .running || $0.state == .suspicious }.count
         pendingApprovalToolCall = allGroups
             .flatMap(\.toolCalls)
             .first(where: { $0.id == visibleToolID })
@@ -394,6 +404,114 @@ final class CodexSessionController: ObservableObject {
         return false
     }
 
+    private func upsertSessionSummaryActivity(from session: CodexRecentSession) {
+        guard session.toolUseID != nil else {
+            return
+        }
+
+        let summaryID = session.sessionID
+        let existing = sessionIndex[summaryID]
+        let nextState: CodexSessionState = session.state == .completed ? .completed : .running
+
+        sessionIndex[summaryID] = CodexRecentSession(
+            id: summaryID,
+            sessionID: session.sessionID,
+            projectName: session.projectName,
+            updatedAt: session.updatedAt,
+            state: nextState,
+            cwd: session.cwd,
+            model: session.model == "unknown" ? (existing?.model ?? session.model) : session.model,
+            transcriptPath: session.transcriptPath ?? existing?.transcriptPath,
+            lastEvent: session.lastEvent,
+            lastUserPrompt: existing?.lastUserPrompt,
+            lastAssistantMessage: existing?.lastAssistantMessage,
+            toolName: nil,
+            toolUseID: nil,
+            toolCommand: nil,
+            requiresApproval: false,
+            approvalStatus: nil
+        )
+    }
+
+    private func syncSuspiciousSessionTracking(for session: CodexRecentSession) {
+        guard session.toolUseID == nil else {
+            return
+        }
+
+        let sessionID = session.sessionID
+        guard session.state != .completed else {
+            suspiciousSessionTasks.removeValue(forKey: sessionID)?.cancel()
+            return
+        }
+
+        suspiciousSessionTasks.removeValue(forKey: sessionID)?.cancel()
+        suspiciousSessionTasks[sessionID] = Task { [weak self] in
+            guard let self else { return }
+            let duration = UInt64(max(0.1, self.suspiciousSessionTimeout) * 1_000_000_000)
+            try? await Task.sleep(nanoseconds: duration)
+            guard !Task.isCancelled else {
+                return
+            }
+
+            await self.markSessionSuspiciousIfNeeded(sessionID: sessionID)
+        }
+    }
+
+    private func rescheduleSuspiciousSessionTracking() {
+        let activeSessionIDs = Set(sessionIndex.values.compactMap { session in
+            guard session.toolUseID == nil, session.state != .completed else {
+                return nil
+            }
+            return session.sessionID
+        })
+
+        for sessionID in suspiciousSessionTasks.keys where !activeSessionIDs.contains(sessionID) {
+            suspiciousSessionTasks.removeValue(forKey: sessionID)?.cancel()
+        }
+
+        for session in sessionIndex.values where session.toolUseID == nil && session.state != .completed {
+            syncSuspiciousSessionTracking(for: session)
+        }
+    }
+
+    private func markSessionSuspiciousIfNeeded(sessionID: String) {
+        suspiciousSessionTasks.removeValue(forKey: sessionID)?.cancel()
+
+        guard let session = sessionIndex[sessionID], session.toolUseID == nil else {
+            return
+        }
+
+        guard session.state == .running else {
+            return
+        }
+
+        sessionIndex[sessionID] = CodexRecentSession(
+            id: session.id,
+            sessionID: session.sessionID,
+            projectName: session.projectName,
+            updatedAt: session.updatedAt,
+            state: .suspicious,
+            cwd: session.cwd,
+            model: session.model,
+            transcriptPath: session.transcriptPath,
+            lastEvent: session.lastEvent,
+            lastUserPrompt: session.lastUserPrompt,
+            lastAssistantMessage: session.lastAssistantMessage,
+            toolName: session.toolName,
+            toolUseID: session.toolUseID,
+            toolCommand: session.toolCommand,
+            requiresApproval: session.requiresApproval,
+            approvalStatus: session.approvalStatus
+        )
+        suspiciousSessionNotification = SuspiciousSessionNotification(
+            id: UUID(),
+            sessionID: session.sessionID,
+            title: sessionTitle(for: session, threadName: threadNameStore.threadNamesBySessionID()[session.sessionID]),
+            projectName: session.projectName
+        )
+        publishVisibleSessions()
+    }
+
     private func scheduleApprovalTimeout(for key: String) {
         approvalTimeoutTasks.removeValue(forKey: key)?.cancel()
 
@@ -455,6 +573,13 @@ struct ApprovalDecisionCounts: Equatable {
 }
 
 struct SessionEndedNotification: Equatable, Identifiable {
+    let id: UUID
+    let sessionID: String
+    let title: String
+    let projectName: String
+}
+
+struct SuspiciousSessionNotification: Equatable, Identifiable {
     let id: UUID
     let sessionID: String
     let title: String

@@ -89,6 +89,8 @@ struct AppLocalization {
         switch state {
         case .running:
             return text("running", chinese: "运行中")
+        case .suspicious:
+            return text("suspicious", chinese: "可疑")
         case .idle:
             return text("idle", chinese: "空闲")
         case .completed:

@@ -38,6 +38,10 @@ struct IslandView: View {
             guard newValue != nil else { return }
             controller.presentSessionEndedPanel()
         }
+        .onChange(of: sessionController.suspiciousSessionNotification?.id) { newValue in
+            guard newValue != nil else { return }
+            controller.presentSuspiciousSessionPanel()
+        }
         .contextMenu {
             ForEach(CollapsedIslandMode.allCases) { mode in
                 Button(mode.title(in: language)) {
@@ -320,6 +324,10 @@ struct IslandContentView: View {
         controller.activePanel == .sessionEnded
     }
 
+    private var isSuspiciousSessionPanelActive: Bool {
+        controller.activePanel == .sessionSuspicious
+    }
+
     private var settingsIconOpacity: Double {
         isSettingsPanelActive ? 0 : 1
     }
@@ -348,7 +356,7 @@ struct IslandContentView: View {
 
             Spacer()
 
-            if !isApprovalPanelActive && !isSessionEndedPanelActive {
+            if !isApprovalPanelActive && !isSessionEndedPanelActive && !isSuspiciousSessionPanelActive {
                 Button {
                     controller.toggleSettingsPanel()
                 } label: {
@@ -375,6 +383,9 @@ struct IslandContentView: View {
         if isSettingsPanelActive {
             return l10n.text("Settings", chinese: "设置")
         }
+        if isSuspiciousSessionPanelActive {
+            return l10n.text("Suspicious Session", chinese: "可疑 Session")
+        }
         if isSessionEndedPanelActive {
             return l10n.text("Session Complete", chinese: "Session 已结束")
         }
@@ -388,6 +399,9 @@ struct IslandContentView: View {
 
     private var expandedSubtitle: String? {
         guard let status = approvalPanelStatus else {
+            if isSuspiciousSessionPanelActive {
+                return l10n.text("This session stopped receiving new events", chinese: "这个 session 在一段时间内没有收到新事件")
+            }
             if isSessionEndedPanelActive {
                 return l10n.text("A Codex session just finished", chinese: "一个 Codex session 刚刚结束")
             }
@@ -408,6 +422,11 @@ struct IslandContentView: View {
             SettingsPanelView()
                 .environmentObject(settingsStore)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        } else if controller.activePanel == .sessionSuspicious {
+            SuspiciousSessionPanelView()
+                .environmentObject(sessionController)
+                .environmentObject(settingsStore)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         } else if controller.activePanel == .sessionEnded {
             SessionEndedPanelView()
                 .environmentObject(sessionController)
@@ -422,6 +441,61 @@ struct IslandContentView: View {
             CodexSessionListView()
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
+    }
+}
+
+private struct SuspiciousSessionPanelView: View {
+    @EnvironmentObject private var sessionController: CodexSessionController
+    @EnvironmentObject private var settingsStore: SettingsConfigStore
+
+    private var l10n: AppLocalization {
+        AppLocalization(language: settingsStore.config.appLanguage)
+    }
+
+    var body: some View {
+        let notification = sessionController.suspiciousSessionNotification
+        let timeout = settingsStore.config.suspiciousSessionTimeout
+
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(Color.orange.opacity(0.18))
+                        .frame(width: 42, height: 42)
+
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundStyle(.orange)
+                }
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(notification?.title ?? l10n.text("Suspicious Session", chinese: "可疑 Session"))
+                        .font(.headline)
+                        .foregroundStyle(.white)
+                        .lineLimit(2)
+
+                    Text(notification?.projectName ?? "")
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.6))
+                        .lineLimit(1)
+                }
+            }
+
+            Text(l10n.text(
+                "No new event was received before the inactivity timeout. The session is still open but has been marked suspicious.",
+                chinese: "在不活跃超时之前没有收到新的事件。这个 session 还没有结束，但已经被标记为可疑。"
+            ))
+            .font(.caption)
+            .foregroundStyle(.white.opacity(0.72))
+            .fixedSize(horizontal: false, vertical: true)
+
+            Text(l10n.text("Timeout: \(timeout)s", chinese: "超时时间：\(timeout) 秒"))
+                .font(.caption2)
+                .foregroundStyle(.orange.opacity(0.9))
+
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 }
 
@@ -824,6 +898,8 @@ struct CodexSessionListView: View {
         switch state {
         case .running:
             return .green
+        case .suspicious:
+            return .orange
         case .idle:
             return .orange
         case .completed:

@@ -27,6 +27,7 @@ enum ExpandedIslandPanel: Equatable {
     case settings
     case approval(status: ApprovalPanelStatus)
     case sessionEnded
+    case sessionSuspicious
 }
 
 enum ApprovalPanelStatus: Equatable {
@@ -49,6 +50,7 @@ final class IslandController: ObservableObject {
     private static let hoverToggleCooldown: TimeInterval = 0.24
     private static let approvalCompletionDisplayDuration: TimeInterval = 1.8
     private static let sessionEndedDisplayDuration: TimeInterval = 2.2
+    private static let suspiciousSessionDisplayDuration: TimeInterval = 2.2
 
     @Published var collapsedMode: CollapsedIslandMode = .detailed
     @Published private(set) var isExpanded = false
@@ -210,6 +212,37 @@ final class IslandController: ObservableObject {
         pendingSessionEndedDismissal = dismissWorkItem
         DispatchQueue.main.asyncAfter(
             deadline: .now() + Self.sessionEndedDisplayDuration,
+            execute: dismissWorkItem
+        )
+    }
+
+    func presentSuspiciousSessionPanel() {
+        guard !approvalPresentationLocked else { return }
+        guard !isExpanded else { return }
+
+        pendingSessionEndedDismissal?.cancel()
+        pendingSessionEndedDismissal = nil
+        transientPresentationLocked = true
+        targetExpandedState = true
+
+        expand()
+        withAnimation(Self.expandAnimation) {
+            activePanel = .sessionSuspicious
+        }
+
+        let dismissWorkItem = DispatchWorkItem { [weak self] in
+            Task { @MainActor in
+                guard let self else { return }
+                self.transientPresentationLocked = false
+                self.targetExpandedState = false
+                self.collapse(resetActivePanel: false)
+                self.activePanel = .sessions
+            }
+        }
+
+        pendingSessionEndedDismissal = dismissWorkItem
+        DispatchQueue.main.asyncAfter(
+            deadline: .now() + Self.suspiciousSessionDisplayDuration,
             execute: dismissWorkItem
         )
     }

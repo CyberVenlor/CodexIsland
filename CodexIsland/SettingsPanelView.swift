@@ -122,6 +122,26 @@ struct SettingsPanelView: View {
                     l10n.text("Show session end island", chinese: "显示 session 结束提示"),
                     isOn: $settingsStore.config.showSessionEndNotifications
                 )
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(l10n.text("Suspicious session timeout", chinese: "可疑 session 超时"))
+                        .font(.subheadline)
+                        .foregroundStyle(.white)
+
+                    TextField(
+                        "60",
+                        value: $settingsStore.config.suspiciousSessionTimeout,
+                        format: .number
+                    )
+                    .textFieldStyle(.roundedBorder)
+
+                    Text(l10n.text(
+                        "When a running session receives no new event for this many seconds, it switches to Suspicious and shows an expanded island notification.",
+                        chinese: "如果运行中的 session 在这段秒数内没有收到新事件，就会切换为可疑状态，并显示一个展开的 island 提示。"
+                    ))
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.52))
+                }
             }
 
             settingsCard(l10n.text("System", chinese: "系统")) {

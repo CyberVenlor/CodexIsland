@@ -27,6 +27,7 @@ struct CodexIslandTests {
         #expect(localization.trackedSessions(3) == "已跟踪 3 个")
         #expect(localization.localizedApprovalStatus("approved") == "已批准")
         #expect(localization.localizedSessionState(.running) == "运行中")
+        #expect(localization.localizedSessionState(.suspicious) == "可疑")
     }
 
     @MainActor
@@ -73,6 +74,21 @@ struct CodexIslandTests {
 
         #expect(islandController.isExpanded == true)
         #expect(islandController.activePanel == .sessionEnded)
+
+        try await Task.sleep(for: .milliseconds(2300))
+
+        #expect(islandController.isExpanded == false)
+        #expect(islandController.activePanel == .sessions)
+    }
+
+    @MainActor
+    @Test func suspiciousSessionPanelExpandsThenReturnsToCollapsedState() async throws {
+        let islandController = IslandController()
+
+        islandController.presentSuspiciousSessionPanel()
+
+        #expect(islandController.isExpanded == true)
+        #expect(islandController.activePanel == .sessionSuspicious)
 
         try await Task.sleep(for: .milliseconds(2300))
 
@@ -167,6 +183,60 @@ struct CodexIslandTests {
         )
 
         #expect(controller.sessionEndedNotification == nil)
+    }
+
+    @MainActor
+    @Test func inactiveSessionBecomesSuspiciousAndPublishesNotification() async throws {
+        let controller = CodexSessionController(
+            threadNameStore: CodexSessionThreadNameStore(
+                databaseURL: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString),
+                indexURL: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            )
+        )
+
+        var config = SettingsConfig()
+        config.suspiciousSessionTimeout = 1
+        controller.updateHookSettings(config)
+
+        _ = controller.handleIncomingPayload(
+            userPromptPayload(sessionID: "session-1"),
+            client: -1
+        )
+
+        #expect(controller.sessions.first?.state == .running)
+
+        try await Task.sleep(for: .milliseconds(1100))
+
+        #expect(controller.sessions.first?.state == .suspicious)
+        #expect(controller.suspiciousSessionNotification?.sessionID == "session-1")
+    }
+
+    @MainActor
+    @Test func newEventRestoresSuspiciousSessionToRunning() async throws {
+        let controller = CodexSessionController(
+            threadNameStore: CodexSessionThreadNameStore(
+                databaseURL: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString),
+                indexURL: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            )
+        )
+
+        var config = SettingsConfig()
+        config.suspiciousSessionTimeout = 1
+        controller.updateHookSettings(config)
+
+        _ = controller.handleIncomingPayload(
+            userPromptPayload(sessionID: "session-1"),
+            client: -1
+        )
+        try await Task.sleep(for: .milliseconds(1100))
+        #expect(controller.sessions.first?.state == .suspicious)
+
+        _ = controller.handleIncomingPayload(
+            userPromptPayload(sessionID: "session-1"),
+            client: -1
+        )
+
+        #expect(controller.sessions.first?.state == .running)
     }
 
     @MainActor
