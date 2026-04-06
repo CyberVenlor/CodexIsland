@@ -109,7 +109,7 @@ final class IslandController: ObservableObject {
         lastTransitionAt = Date()
     }
 
-    func collapse() {
+    func collapse(resetActivePanel: Bool = true) {
         guard isExpanded else { return }
         guard !approvalPresentationLocked else { return }
         guard canTransitionNow else {
@@ -119,7 +119,9 @@ final class IslandController: ObservableObject {
 
         withAnimation(Self.collapseAnimation) {
             isExpanded = false
-            activePanel = .sessions
+            if resetActivePanel {
+                activePanel = .sessions
+            }
         }
         lastTransitionAt = Date()
     }
@@ -161,8 +163,8 @@ final class IslandController: ObservableObject {
                 guard let self else { return }
                 self.approvalPresentationLocked = false
                 self.targetExpandedState = false
+                self.collapse(resetActivePanel: false)
                 self.activePanel = .sessions
-                self.collapse()
             }
         }
 

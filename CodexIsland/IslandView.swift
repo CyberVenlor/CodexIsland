@@ -430,6 +430,7 @@ private struct ApprovalPanelView: View {
                             .textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(10)
+                            .lineLimit(4)
                             .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                     }
                 }
@@ -447,7 +448,11 @@ private struct ApprovalPanelView: View {
                 }
                 .buttonStyle(.borderedProminent)
             }
+            .padding(.top, 2)
+
+            Spacer(minLength: 0)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     private var completionView: some View {

@@ -39,7 +39,7 @@ struct IslandShellStyle: Equatable {
             )
         case .expanded(.approval(_)):
             IslandShellStyle(
-                size: CGSize(width: 360, height: 212),
+                size: CGSize(width: 400, height: 270),
                 topRadius: 8,
                 bottomRadius: 20,
                 backgroundOpacity: 1.0,
