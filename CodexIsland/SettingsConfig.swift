@@ -1,7 +1,7 @@
 import Combine
 import Foundation
 
-struct SettingsConfig: Codable {
+struct SettingsConfig: Codable, Equatable {
     var launchAtLogin = true
     var displayName = "Faker"
     var preferredLanguage = "English"
@@ -73,18 +73,25 @@ struct SettingsConfig: Codable {
 
 @MainActor
 final class SettingsConfigStore: ObservableObject {
+    private static let saveDebounceDelay: TimeInterval = 0.18
+
     @Published var config: SettingsConfig {
         didSet {
-            save()
+            guard oldValue != config else { return }
+            scheduleSave()
         }
     }
 
     private let fileManager: FileManager
-    private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
     private let configURL: URL
     private let hooksConfigStore: CodexHooksConfigStore
     private let codexCLIConfigStore: CodexCLIConfigStore
+    private let saveQueue = DispatchQueue(
+        label: "CodexIsland.SettingsConfigStore.save",
+        qos: .utility
+    )
+    private var pendingSaveWorkItem: DispatchWorkItem?
 
     init(
         fileManager: FileManager = .default,
@@ -107,7 +114,7 @@ final class SettingsConfigStore: ObservableObject {
             hooksConfigStore: hooksConfigStore,
             codexCLIConfigStore: codexCLIConfigStore
         )
-        save()
+        scheduleSave(immediately: true)
     }
 
     private static func loadConfig(
@@ -130,19 +137,56 @@ final class SettingsConfigStore: ObservableObject {
         return codexCLIConfigStore.mergingCLIConfig(into: hooksConfigStore.mergingHooksConfig(into: baseConfig))
     }
 
-    private func save() {
-        do {
-            try fileManager.createDirectory(
-                at: configURL.deletingLastPathComponent(),
-                withIntermediateDirectories: true
-            )
-            let data = try encoder.encode(config)
-            try data.write(to: configURL, options: .atomic)
-            try hooksConfigStore.write(config: config)
-            try codexCLIConfigStore.write(config: config)
-        } catch {
-            assertionFailure("Failed to save settings config: \(error)")
+    deinit {
+        pendingSaveWorkItem?.cancel()
+    }
+
+    private func scheduleSave(immediately: Bool = false) {
+        let snapshot = config
+        let fileManager = fileManager
+        let configURL = configURL
+        let hooksConfigStore = hooksConfigStore
+        let codexCLIConfigStore = codexCLIConfigStore
+        pendingSaveWorkItem?.cancel()
+
+        let workItem = DispatchWorkItem {
+            do {
+                try Self.persist(
+                    config: snapshot,
+                    fileManager: fileManager,
+                    configURL: configURL,
+                    hooksConfigStore: hooksConfigStore,
+                    codexCLIConfigStore: codexCLIConfigStore
+                )
+            } catch {
+                NSLog("Failed to save settings config: %@", String(describing: error))
+            }
         }
+
+        pendingSaveWorkItem = workItem
+
+        if immediately {
+            saveQueue.async(execute: workItem)
+        } else {
+            saveQueue.asyncAfter(deadline: .now() + Self.saveDebounceDelay, execute: workItem)
+        }
+    }
+
+    private static func persist(
+        config: SettingsConfig,
+        fileManager: FileManager,
+        configURL: URL,
+        hooksConfigStore: CodexHooksConfigStore,
+        codexCLIConfigStore: CodexCLIConfigStore
+    ) throws {
+        try fileManager.createDirectory(
+            at: configURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        let data = try JSONEncoder().encode(config)
+        try data.write(to: configURL, options: .atomic)
+        try hooksConfigStore.write(config: config)
+        try codexCLIConfigStore.write(config: config)
     }
 
     func setCodexExternalApprovalModeEnabled(_ isEnabled: Bool) {
