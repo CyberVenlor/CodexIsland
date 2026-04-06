@@ -879,14 +879,17 @@ struct CodexSessionListView: View {
             }
 
             if let lastUserPrompt = session.lastUserPrompt, !lastUserPrompt.isEmpty {
-                sessionDetailBox("prompt: \(lastUserPrompt)")
+                sessionDetailBox(label: "prompt", text: lastUserPrompt)
             }
 
             if let lastAssistantMessage = session.lastAssistantMessage, !lastAssistantMessage.isEmpty {
-                sessionDetailBox("reply: \(lastAssistantMessage)")
+                sessionDetailBox(label: "reply", text: lastAssistantMessage)
             }
 
-            sessionDetailBox("time: \(session.updatedAt.formatted(date: .abbreviated, time: .shortened))")
+            sessionDetailBox(
+                label: "time",
+                text: session.updatedAt.formatted(date: .abbreviated, time: .shortened)
+            )
         }
         .padding(14)
         .background(
@@ -909,17 +912,32 @@ struct CodexSessionListView: View {
         }
     }
 
-    private func sessionDetailBox(_ text: String) -> some View {
-        Text(text)
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .lineLimit(2)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(8)
-            .background(
-                Color.secondary.opacity(0.08),
-                in: RoundedRectangle(cornerRadius: toolCallCornerRadius, style: .continuous)
-            )
+    private func sessionDetailBox(label: String, text: String) -> some View {
+        let rowHeight: CGFloat = 24
+
+        return ZStack(alignment: .leading) {
+            RoundedRectangle(cornerRadius: toolCallCornerRadius, style: .continuous)
+                .fill(Color.black.opacity(0.14))
+
+            HStack(spacing: 0) {
+                Text(label)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 9)
+                    .frame(height: rowHeight)
+                    .background(Color.secondary.opacity(0.16))
+                    .clipShape(RoundedRectangle(cornerRadius: toolCallCornerRadius, style: .continuous))
+
+                Text(text)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 4)
+            }
+        }
+        .frame(maxWidth: .infinity, minHeight: rowHeight, alignment: .leading)
     }
 
     private func stateColor(for state: CodexSessionState) -> Color {
