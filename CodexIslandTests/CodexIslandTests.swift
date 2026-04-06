@@ -200,7 +200,7 @@ struct CodexIslandTests {
         INSERT INTO threads (
             id, rollout_path, created_at, updated_at, source, model_provider, cwd, title, sandbox_policy, approval_mode
         ) VALUES (
-            'session-1', '/tmp/rollout.jsonl', 0, 0, 'desktop', 'openai', '/tmp/CodexIsland', 'Review sessions UI', 'workspace-write', 'default'
+            'session-1', '/tmp/rollout.jsonl', 0, 0, 'vscode', 'openai', '/tmp/CodexIsland', 'Review sessions UI', 'workspace-write', 'default'
         );
         """)
 
@@ -226,6 +226,7 @@ struct CodexIslandTests {
         #expect(controller.sessions.count == 1)
         #expect(controller.sessions[0].title == "Review sessions UI")
         #expect(controller.sessions[0].projectName == "CodexIsland")
+        #expect(controller.sessions[0].source == .vscode)
     }
 
     @MainActor
@@ -259,6 +260,32 @@ struct CodexIslandTests {
 
         #expect(controller.sessions.count == 1)
         #expect(controller.sessions[0].title == "CodexIsland")
+    }
+
+    @MainActor
+    @Test func openSessionDelegatesToNavigator() async throws {
+        let navigator = SessionNavigatorSpy()
+        let controller = CodexSessionController(sessionNavigator: navigator)
+        let session = CodexSessionGroup(
+            id: "session-1",
+            title: "Review sessions UI",
+            projectName: "CodexIsland",
+            updatedAt: Date(),
+            state: .running,
+            source: .cli,
+            cwd: "/tmp/CodexIsland",
+            model: "gpt-5.4",
+            transcriptPath: "/tmp/transcript.jsonl",
+            lastEvent: "UserPromptSubmit",
+            lastUserPrompt: "open it",
+            lastAssistantMessage: nil,
+            toolCalls: []
+        )
+
+        let didOpen = controller.openSession(session)
+
+        #expect(didOpen == true)
+        #expect(navigator.openedSessions == [session])
     }
 
     @MainActor
@@ -654,6 +681,15 @@ private final class SQLiteDatabase {
 private enum SQLiteError: Error {
     case openFailed
     case executionFailed
+}
+
+private final class SessionNavigatorSpy: CodexSessionNavigating {
+    private(set) var openedSessions: [CodexSessionGroup] = []
+
+    func open(_ session: CodexSessionGroup) -> Bool {
+        openedSessions.append(session)
+        return true
+    }
 }
 
 private func preToolUsePayload(sessionID: String, toolUseID: String, command: String) -> Data {

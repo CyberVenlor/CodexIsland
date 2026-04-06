@@ -37,6 +37,7 @@ struct CodexSessionGroup: Identifiable, Equatable {
     let projectName: String
     let updatedAt: Date
     let state: CodexSessionState
+    let source: CodexThreadSource?
     let cwd: String
     let model: String
     let transcriptPath: String?

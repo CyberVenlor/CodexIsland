@@ -12,6 +12,7 @@ final class CodexSessionController: ObservableObject {
 
     private let persistence: CodexSessionPersisting
     private let threadNameStore: CodexSessionThreadNameStore
+    private let sessionNavigator: CodexSessionNavigating
     private let debugLogger: CodexHookDebugLogger
     private let launchedAt: Date
     private let autoDenyLeadTime: TimeInterval
@@ -25,12 +26,14 @@ final class CodexSessionController: ObservableObject {
     init(
         persistence: CodexSessionPersisting = NoOpCodexSessionPersistence(),
         threadNameStore: CodexSessionThreadNameStore = CodexSessionThreadNameStore(),
+        sessionNavigator: CodexSessionNavigating = CodexSessionNavigator(),
         debugLogger: CodexHookDebugLogger = .disabled,
         launchedAt: Date = Date(),
         autoDenyLeadTime: TimeInterval = 1
     ) {
         self.persistence = persistence
         self.threadNameStore = threadNameStore
+        self.sessionNavigator = sessionNavigator
         self.debugLogger = debugLogger
         self.launchedAt = launchedAt
         self.autoDenyLeadTime = autoDenyLeadTime
@@ -111,6 +114,11 @@ final class CodexSessionController: ObservableObject {
                 CodexHookResponse.denyToolUse(reason: "Denied from CodexIsland")
             )
         )
+    }
+
+    @discardableResult
+    func openSession(_ session: CodexSessionGroup) -> Bool {
+        sessionNavigator.open(session)
     }
 
     private func resolve(
@@ -213,7 +221,7 @@ final class CodexSessionController: ObservableObject {
 
     private func allSessionGroups(from rawSessions: Dictionary<String, CodexRecentSession>.Values) -> [CodexSessionGroup] {
         let grouped = Dictionary(grouping: rawSessions, by: \.sessionID)
-        let threadNames = threadNameStore.threadNamesBySessionID()
+        let threadMetadata = threadNameStore.threadMetadataBySessionID()
 
         return grouped.compactMap { sessionID, items in
             guard let base = items
@@ -242,10 +250,11 @@ final class CodexSessionController: ObservableObject {
 
             return CodexSessionGroup(
                 id: sessionID,
-                title: sessionTitle(for: base, threadName: threadNames[sessionID]),
+                title: sessionTitle(for: base, threadName: threadMetadata[sessionID]?.title),
                 projectName: base.projectName,
                 updatedAt: max(base.updatedAt, toolCalls.map(\.updatedAt).max() ?? base.updatedAt),
                 state: base.state,
+                source: threadMetadata[sessionID]?.source,
                 cwd: base.cwd,
                 model: base.model,
                 transcriptPath: base.transcriptPath,
@@ -306,6 +315,7 @@ final class CodexSessionController: ObservableObject {
                     projectName: group.projectName,
                     updatedAt: group.updatedAt,
                     state: group.state,
+                    source: group.source,
                     cwd: group.cwd,
                     model: group.model,
                     transcriptPath: group.transcriptPath,

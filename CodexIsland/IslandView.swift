@@ -697,8 +697,9 @@ struct CodexSessionListView: View {
         .animation(sessionStackAnimation, value: sessionController.sessions.map(\.id))
     }
 
+    @ViewBuilder
     private func sessionRow(_ session: CodexSessionGroup) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        let content = VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text(session.title)
                     .font(.headline)
@@ -795,6 +796,16 @@ struct CodexSessionListView: View {
             RoundedRectangle(cornerRadius: sessionCornerRadius, style: .continuous)
                 .stroke(Color.white.opacity(0.05), lineWidth: 1)
         }
+
+        if canOpen(session) {
+            content
+                .contentShape(RoundedRectangle(cornerRadius: sessionCornerRadius, style: .continuous))
+                .onTapGesture {
+                    _ = sessionController.openSession(session)
+                }
+        } else {
+            content
+        }
     }
 
     private func stateColor(for state: CodexSessionState) -> Color {
@@ -807,6 +818,15 @@ struct CodexSessionListView: View {
             return .blue
         case .unknown:
             return .gray
+        }
+    }
+
+    private func canOpen(_ session: CodexSessionGroup) -> Bool {
+        switch session.source {
+        case .cli, .vscode:
+            return true
+        case .other, .none:
+            return false
         }
     }
 }

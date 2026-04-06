@@ -1,6 +1,28 @@
 import Foundation
 import SQLite3
 
+enum CodexThreadSource: Equatable {
+    case cli
+    case vscode
+    case other(String)
+
+    init(rawValue: String) {
+        switch rawValue {
+        case "cli":
+            self = .cli
+        case "vscode":
+            self = .vscode
+        default:
+            self = .other(rawValue)
+        }
+    }
+}
+
+struct CodexThreadMetadata: Equatable {
+    var title: String?
+    var source: CodexThreadSource?
+}
+
 struct CodexSessionThreadNameStore {
     private let fileManager: FileManager
     private let databaseURL: URL
@@ -20,17 +42,34 @@ struct CodexSessionThreadNameStore {
         self.fileManager = fileManager
     }
 
-    func threadNamesBySessionID() -> [String: String] {
-        var names = loadThreadNamesFromSQLite()
+    func threadMetadataBySessionID() -> [String: CodexThreadMetadata] {
+        var metadata = loadThreadMetadataFromSQLite()
 
         for (id, name) in loadThreadNamesFromIndex() {
-            names[id] = name
+            let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmedName.isEmpty else {
+                continue
+            }
+
+            var existing = metadata[id] ?? CodexThreadMetadata()
+            existing.title = trimmedName
+            metadata[id] = existing
         }
 
-        return names
+        return metadata
     }
 
-    private func loadThreadNamesFromSQLite() -> [String: String] {
+    func threadNamesBySessionID() -> [String: String] {
+        threadMetadataBySessionID().reduce(into: [:]) { result, entry in
+            guard let title = entry.value.title, !title.isEmpty else {
+                return
+            }
+
+            result[entry.key] = title
+        }
+    }
+
+    private func loadThreadMetadataFromSQLite() -> [String: CodexThreadMetadata] {
         guard fileManager.fileExists(atPath: databaseURL.path) else {
             return [:]
         }
@@ -42,7 +81,7 @@ struct CodexSessionThreadNameStore {
         }
         defer { sqlite3_close(database) }
 
-        let query = "SELECT id, title FROM threads WHERE archived = 0;"
+        let query = "SELECT id, title, source FROM threads WHERE archived = 0;"
         var statement: OpaquePointer?
         guard sqlite3_prepare_v2(database, query, -1, &statement, nil) == SQLITE_OK else {
             sqlite3_finalize(statement)
@@ -50,7 +89,7 @@ struct CodexSessionThreadNameStore {
         }
         defer { sqlite3_finalize(statement) }
 
-        var result: [String: String] = [:]
+        var result: [String: CodexThreadMetadata] = [:]
 
         while sqlite3_step(statement) == SQLITE_ROW {
             guard
@@ -62,12 +101,17 @@ struct CodexSessionThreadNameStore {
 
             let id = String(cString: idPointer).trimmingCharacters(in: .whitespacesAndNewlines)
             let title = String(cString: titlePointer).trimmingCharacters(in: .whitespacesAndNewlines)
+            let source = sqlite3_column_text(statement, 2).map { String(cString: $0) }
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
 
             guard !id.isEmpty, !title.isEmpty else {
                 continue
             }
 
-            result[id] = title
+            result[id] = CodexThreadMetadata(
+                title: title,
+                source: source.map(CodexThreadSource.init(rawValue:))
+            )
         }
 
         return result
