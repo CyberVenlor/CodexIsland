@@ -30,6 +30,10 @@ struct IslandView: View {
         .frame(width: canvasSize.width, height: canvasSize.height, alignment: .top)
         .onAppear {
             controller.updateApprovalPresentation(hasPendingApproval: sessionController.hasPendingApprovals)
+            controller.updateTransientPresentationSettings(
+                sessionEndedDuration: TimeInterval(settingsStore.config.completedIslandDisplayDuration),
+                suspiciousDuration: TimeInterval(settingsStore.config.suspiciousIslandDisplayDuration)
+            )
         }
         .onChange(of: sessionController.pendingApprovalToolCall?.id) { newValue in
             controller.updateApprovalPresentation(hasPendingApproval: newValue != nil)
@@ -41,6 +45,18 @@ struct IslandView: View {
         .onChange(of: sessionController.suspiciousSessionNotification?.id) { newValue in
             guard newValue != nil else { return }
             controller.presentSuspiciousSessionPanel()
+        }
+        .onChange(of: settingsStore.config.completedIslandDisplayDuration) { newValue in
+            controller.updateTransientPresentationSettings(
+                sessionEndedDuration: TimeInterval(newValue),
+                suspiciousDuration: TimeInterval(settingsStore.config.suspiciousIslandDisplayDuration)
+            )
+        }
+        .onChange(of: settingsStore.config.suspiciousIslandDisplayDuration) { newValue in
+            controller.updateTransientPresentationSettings(
+                sessionEndedDuration: TimeInterval(settingsStore.config.completedIslandDisplayDuration),
+                suspiciousDuration: TimeInterval(newValue)
+            )
         }
         .contextMenu {
             ForEach(CollapsedIslandMode.allCases) { mode in

@@ -142,6 +142,46 @@ struct SettingsPanelView: View {
                         .font(.caption)
                         .foregroundStyle(.white.opacity(0.52))
                 }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(l10n.text("Completed island display", chinese: "Completed 弹窗显示时长"))
+                        .font(.subheadline)
+                        .foregroundStyle(.white)
+
+                    TextField(
+                        "2",
+                        value: $settingsStore.config.completedIslandDisplayDuration,
+                        format: .number
+                    )
+                    .textFieldStyle(.roundedBorder)
+
+                    Text(l10n.text(
+                        "How long the completed expanded island stays open. Set 0 to require mouse interaction before dismissing.",
+                        chinese: "completed 展开 island 保持显示的时长。设为 0 时，需要鼠标交互后才会关闭。"
+                    ))
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.52))
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(l10n.text("Suspicious island display", chinese: "Suspicious 弹窗显示时长"))
+                        .font(.subheadline)
+                        .foregroundStyle(.white)
+
+                    TextField(
+                        "2",
+                        value: $settingsStore.config.suspiciousIslandDisplayDuration,
+                        format: .number
+                    )
+                    .textFieldStyle(.roundedBorder)
+
+                    Text(l10n.text(
+                        "How long the suspicious expanded island stays open. Set 0 to require mouse interaction before dismissing.",
+                        chinese: "suspicious 展开 island 保持显示的时长。设为 0 时，需要鼠标交互后才会关闭。"
+                    ))
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.52))
+                }
             }
 
             settingsCard(l10n.text("System", chinese: "系统")) {

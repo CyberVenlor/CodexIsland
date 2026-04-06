@@ -69,6 +69,7 @@ struct CodexIslandTests {
     @MainActor
     @Test func sessionEndedPanelExpandsThenReturnsToCollapsedState() async throws {
         let islandController = IslandController()
+        islandController.updateTransientPresentationSettings(sessionEndedDuration: 2, suspiciousDuration: 2)
 
         islandController.presentSessionEndedPanel()
 
@@ -84,6 +85,7 @@ struct CodexIslandTests {
     @MainActor
     @Test func suspiciousSessionPanelExpandsThenReturnsToCollapsedState() async throws {
         let islandController = IslandController()
+        islandController.updateTransientPresentationSettings(sessionEndedDuration: 2, suspiciousDuration: 2)
 
         islandController.presentSuspiciousSessionPanel()
 
@@ -91,6 +93,41 @@ struct CodexIslandTests {
         #expect(islandController.activePanel == .sessionSuspicious)
 
         try await Task.sleep(for: .milliseconds(2300))
+
+        #expect(islandController.isExpanded == false)
+        #expect(islandController.activePanel == .sessions)
+    }
+
+    @MainActor
+    @Test func zeroDurationCompletedPanelRequiresOutsideInteractionToDismiss() async throws {
+        let islandController = IslandController()
+        islandController.updateTransientPresentationSettings(sessionEndedDuration: 0, suspiciousDuration: 2)
+
+        islandController.presentSessionEndedPanel()
+        try await Task.sleep(for: .milliseconds(2300))
+
+        #expect(islandController.isExpanded == true)
+        #expect(islandController.activePanel == .sessionEnded)
+
+        islandController.handleOutsideInteraction()
+
+        #expect(islandController.isExpanded == false)
+        #expect(islandController.activePanel == .sessions)
+    }
+
+    @MainActor
+    @Test func zeroDurationSuspiciousPanelRequiresHoverEnterThenExitToDismiss() async throws {
+        let islandController = IslandController()
+        islandController.updateTransientPresentationSettings(sessionEndedDuration: 2, suspiciousDuration: 0)
+
+        islandController.presentSuspiciousSessionPanel()
+        try await Task.sleep(for: .milliseconds(2300))
+
+        #expect(islandController.isExpanded == true)
+        #expect(islandController.activePanel == .sessionSuspicious)
+
+        islandController.handleHoverChange(true)
+        islandController.handleHoverChange(false)
 
         #expect(islandController.isExpanded == false)
         #expect(islandController.activePanel == .sessions)

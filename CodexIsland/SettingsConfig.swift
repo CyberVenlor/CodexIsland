@@ -10,6 +10,8 @@ struct SettingsConfig: Codable {
     var enablePostToolUseHook = false
     var preToolUseTimeout = 300
     var suspiciousSessionTimeout = 60
+    var completedIslandDisplayDuration = 2
+    var suspiciousIslandDisplayDuration = 2
     var showSessionEndNotifications = true
 
     private enum CodingKeys: String, CodingKey {
@@ -21,6 +23,8 @@ struct SettingsConfig: Codable {
         case enablePostToolUseHook
         case preToolUseTimeout
         case suspiciousSessionTimeout
+        case completedIslandDisplayDuration
+        case suspiciousIslandDisplayDuration
         case showSessionEndNotifications
         case legacyEnablePreHook = "enablePreHook"
         case legacyEnablePostHook = "enablePostHook"
@@ -42,6 +46,8 @@ struct SettingsConfig: Codable {
             ?? false
         preToolUseTimeout = max(1, try container.decodeIfPresent(Int.self, forKey: .preToolUseTimeout) ?? 300)
         suspiciousSessionTimeout = max(1, try container.decodeIfPresent(Int.self, forKey: .suspiciousSessionTimeout) ?? 60)
+        completedIslandDisplayDuration = max(0, try container.decodeIfPresent(Int.self, forKey: .completedIslandDisplayDuration) ?? 2)
+        suspiciousIslandDisplayDuration = max(0, try container.decodeIfPresent(Int.self, forKey: .suspiciousIslandDisplayDuration) ?? 2)
         showSessionEndNotifications = try container.decodeIfPresent(Bool.self, forKey: .showSessionEndNotifications) ?? true
     }
 
@@ -55,6 +61,8 @@ struct SettingsConfig: Codable {
         try container.encode(enablePostToolUseHook, forKey: .enablePostToolUseHook)
         try container.encode(preToolUseTimeout, forKey: .preToolUseTimeout)
         try container.encode(suspiciousSessionTimeout, forKey: .suspiciousSessionTimeout)
+        try container.encode(completedIslandDisplayDuration, forKey: .completedIslandDisplayDuration)
+        try container.encode(suspiciousIslandDisplayDuration, forKey: .suspiciousIslandDisplayDuration)
         try container.encode(showSessionEndNotifications, forKey: .showSessionEndNotifications)
     }
 }

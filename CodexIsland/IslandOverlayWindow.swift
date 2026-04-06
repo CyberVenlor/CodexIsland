@@ -92,6 +92,7 @@ final class IslandOverlayController: NSObject {
     private var panel: IslandPanel?
     private var cancellables: Set<AnyCancellable> = []
     private var mousePassthroughTimer: Timer?
+    private var globalMouseDownMonitor: Any?
 
     init(sessionController: CodexSessionController, settingsStore: SettingsConfigStore) {
         self.sessionController = sessionController
@@ -122,6 +123,7 @@ final class IslandOverlayController: NSObject {
         bindWindowUpdates()
         updateWindowFrame(animated: false)
         startMousePassthroughMonitor()
+        startOutsideClickMonitor()
         panel.orderFrontRegardless()
     }
 
@@ -215,6 +217,34 @@ final class IslandOverlayController: NSObject {
         updateMousePassthrough()
     }
 
+    private func startOutsideClickMonitor() {
+        guard globalMouseDownMonitor == nil else { return }
+
+        globalMouseDownMonitor = NSEvent.addGlobalMonitorForEvents(
+            matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.handleGlobalMouseDown()
+            }
+        }
+    }
+
+    private func handleGlobalMouseDown() {
+        guard let panel else { return }
+        guard let contentBounds = panel.contentView?.bounds else { return }
+
+        let mouseLocation = NSEvent.mouseLocation
+        let localPoint = panel.convertPoint(fromScreen: mouseLocation)
+        let shellSize = IslandShellStyle.forState(islandController.presentationState).size
+        let interactiveRect = IslandOverlayLayout.interactiveRect(for: shellSize, in: contentBounds)
+
+        guard !interactiveRect.contains(localPoint) else {
+            return
+        }
+
+        islandController.handleOutsideInteraction()
+    }
+
     private func updateMousePassthrough() {
         guard let panel else { return }
         guard let contentBounds = panel.contentView?.bounds else { return }
@@ -228,5 +258,8 @@ final class IslandOverlayController: NSObject {
 
     deinit {
         mousePassthroughTimer?.invalidate()
+        if let globalMouseDownMonitor {
+            NSEvent.removeMonitor(globalMouseDownMonitor)
+        }
     }
 }

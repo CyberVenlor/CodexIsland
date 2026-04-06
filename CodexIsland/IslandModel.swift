@@ -49,8 +49,6 @@ final class IslandController: ObservableObject {
     private static let hoverExitDelay: TimeInterval = 0.40
     private static let hoverToggleCooldown: TimeInterval = 0.24
     private static let approvalCompletionDisplayDuration: TimeInterval = 1.8
-    private static let sessionEndedDisplayDuration: TimeInterval = 2.2
-    private static let suspiciousSessionDisplayDuration: TimeInterval = 2.2
 
     @Published var collapsedMode: CollapsedIslandMode = .detailed
     @Published private(set) var isExpanded = false
@@ -64,6 +62,10 @@ final class IslandController: ObservableObject {
     private var targetExpandedState = false
     private var approvalPresentationLocked = false
     private var transientPresentationLocked = false
+    private var transientPresentationRequiresInteraction = false
+    private var transientHoverArmed = false
+    private var sessionEndedDisplayDuration: TimeInterval = 2
+    private var suspiciousSessionDisplayDuration: TimeInterval = 2
 
     let items: [IslandListItem] = [
         IslandListItem(title: "Now Playing", subtitle: "Ambient mix queued for focus mode", systemImage: "music.note"),
@@ -79,8 +81,30 @@ final class IslandController: ObservableObject {
         }
     }
 
+    func updateTransientPresentationSettings(
+        sessionEndedDuration: TimeInterval,
+        suspiciousDuration: TimeInterval
+    ) {
+        sessionEndedDisplayDuration = max(0, sessionEndedDuration)
+        suspiciousSessionDisplayDuration = max(0, suspiciousDuration)
+    }
+
     func handleHoverChange(_ isHovering: Bool) {
-        guard !approvalPresentationLocked, !transientPresentationLocked else { return }
+        guard !approvalPresentationLocked else { return }
+
+        if transientPresentationLocked {
+            guard transientPresentationRequiresInteraction else { return }
+
+            if isHovering {
+                transientHoverArmed = true
+                return
+            }
+
+            guard transientHoverArmed else { return }
+            dismissTransientPresentation()
+            return
+        }
+
         pendingCollapse?.cancel()
         pendingCollapse = nil
         targetExpandedState = isHovering
@@ -189,62 +213,60 @@ final class IslandController: ObservableObject {
         guard !approvalPresentationLocked else { return }
         guard !isExpanded else { return }
 
-        pendingSessionEndedDismissal?.cancel()
-        pendingSessionEndedDismissal = nil
-        transientPresentationLocked = true
-        targetExpandedState = true
-
-        expand()
-        withAnimation(Self.expandAnimation) {
-            activePanel = .sessionEnded
-        }
-
-        let dismissWorkItem = DispatchWorkItem { [weak self] in
-            Task { @MainActor in
-                guard let self else { return }
-                self.transientPresentationLocked = false
-                self.targetExpandedState = false
-                self.collapse(resetActivePanel: false)
-                self.activePanel = .sessions
-            }
-        }
-
-        pendingSessionEndedDismissal = dismissWorkItem
-        DispatchQueue.main.asyncAfter(
-            deadline: .now() + Self.sessionEndedDisplayDuration,
-            execute: dismissWorkItem
-        )
+        presentTransientPanel(.sessionEnded, displayDuration: sessionEndedDisplayDuration)
     }
 
     func presentSuspiciousSessionPanel() {
         guard !approvalPresentationLocked else { return }
         guard !isExpanded else { return }
 
+        presentTransientPanel(.sessionSuspicious, displayDuration: suspiciousSessionDisplayDuration)
+    }
+
+    func handleOutsideInteraction() {
+        guard transientPresentationLocked, transientPresentationRequiresInteraction else { return }
+        dismissTransientPresentation()
+    }
+
+    private func presentTransientPanel(_ panel: ExpandedIslandPanel, displayDuration: TimeInterval) {
         pendingSessionEndedDismissal?.cancel()
         pendingSessionEndedDismissal = nil
         transientPresentationLocked = true
+        transientPresentationRequiresInteraction = displayDuration == 0
+        transientHoverArmed = false
         targetExpandedState = true
 
         expand()
         withAnimation(Self.expandAnimation) {
-            activePanel = .sessionSuspicious
+            activePanel = panel
+        }
+
+        guard displayDuration > 0 else {
+            return
         }
 
         let dismissWorkItem = DispatchWorkItem { [weak self] in
             Task { @MainActor in
-                guard let self else { return }
-                self.transientPresentationLocked = false
-                self.targetExpandedState = false
-                self.collapse(resetActivePanel: false)
-                self.activePanel = .sessions
+                self?.dismissTransientPresentation()
             }
         }
 
         pendingSessionEndedDismissal = dismissWorkItem
         DispatchQueue.main.asyncAfter(
-            deadline: .now() + Self.suspiciousSessionDisplayDuration,
+            deadline: .now() + displayDuration,
             execute: dismissWorkItem
         )
+    }
+
+    private func dismissTransientPresentation() {
+        pendingSessionEndedDismissal?.cancel()
+        pendingSessionEndedDismissal = nil
+        transientPresentationLocked = false
+        transientPresentationRequiresInteraction = false
+        transientHoverArmed = false
+        targetExpandedState = false
+        collapse(resetActivePanel: false)
+        activePanel = .sessions
     }
 
     private var canTransitionNow: Bool {
