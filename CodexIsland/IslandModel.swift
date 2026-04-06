@@ -49,6 +49,7 @@ final class IslandController: ObservableObject {
     private static let hoverExitDelay: TimeInterval = 0.40
     private static let hoverToggleCooldown: TimeInterval = 0.24
     private static let approvalCompletionDisplayDuration: TimeInterval = 1.8
+    private static let hapticPulseInterval: TimeInterval = 0.055
 
     @Published var collapsedMode: CollapsedIslandMode = .detailed
     @Published private(set) var isExpanded = false
@@ -157,6 +158,7 @@ final class IslandController: ObservableObject {
                 activePanel = .sessions
             }
         }
+        Self.performCollapseHaptic()
         lastTransitionAt = Date()
     }
 
@@ -225,14 +227,22 @@ final class IslandController: ObservableObject {
         guard !approvalPresentationLocked else { return }
         guard !isExpanded else { return }
 
-        presentTransientPanel(.sessionEnded, displayDuration: sessionEndedDisplayDuration)
+        presentTransientPanel(
+            .sessionEnded,
+            displayDuration: sessionEndedDisplayDuration,
+            haptic: Self.performSessionEndedHaptic
+        )
     }
 
     func presentSuspiciousSessionPanel() {
         guard !approvalPresentationLocked else { return }
         guard !isExpanded else { return }
 
-        presentTransientPanel(.sessionSuspicious, displayDuration: suspiciousSessionDisplayDuration)
+        presentTransientPanel(
+            .sessionSuspicious,
+            displayDuration: suspiciousSessionDisplayDuration,
+            haptic: Self.performSuspiciousSessionHaptic
+        )
     }
 
     func handleOutsideInteraction() {
@@ -240,7 +250,11 @@ final class IslandController: ObservableObject {
         dismissTransientPresentation()
     }
 
-    private func presentTransientPanel(_ panel: ExpandedIslandPanel, displayDuration: TimeInterval) {
+    private func presentTransientPanel(
+        _ panel: ExpandedIslandPanel,
+        displayDuration: TimeInterval,
+        haptic: () -> Void
+    ) {
         pendingSessionEndedDismissal?.cancel()
         pendingSessionEndedDismissal = nil
         transientPresentationLocked = true
@@ -252,6 +266,7 @@ final class IslandController: ObservableObject {
         withAnimation(Self.expandAnimation) {
             activePanel = panel
         }
+        haptic()
 
         guard displayDuration > 0 else {
             return
@@ -329,10 +344,38 @@ final class IslandController: ObservableObject {
     }
 
     private static func performExpandHaptic() {
-        NSHapticFeedbackManager.defaultPerformer.perform(.generic, performanceTime: .now)
+        performPrimaryTransitionHaptic()
+    }
+
+    private static func performCollapseHaptic() {
+        performPrimaryTransitionHaptic()
     }
 
     private static func performApprovalCompletionHaptic() {
-        NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
+        performHapticSequence([.alignment, .alignment, .generic], interval: hapticPulseInterval)
+    }
+
+    private static func performPrimaryTransitionHaptic() {
+        NSHapticFeedbackManager.defaultPerformer.perform(.levelChange, performanceTime: .now)
+    }
+
+    private static func performSessionEndedHaptic() {
+        performHapticSequence([.alignment, .generic, .alignment], interval: hapticPulseInterval)
+    }
+
+    private static func performSuspiciousSessionHaptic() {
+        performHapticSequence([.generic, .alignment, .alignment, .generic], interval: hapticPulseInterval)
+    }
+
+    private static func performHapticSequence(
+        _ patterns: [NSHapticFeedbackManager.FeedbackPattern],
+        interval: TimeInterval = hapticPulseInterval
+    ) {
+        for (index, pattern) in patterns.enumerated() {
+            let delay = interval * Double(index)
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                NSHapticFeedbackManager.defaultPerformer.perform(pattern, performanceTime: .now)
+            }
+        }
     }
 }
