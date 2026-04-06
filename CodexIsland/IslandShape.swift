@@ -8,7 +8,7 @@ struct IslandShellStyle: Equatable {
     let strokeOpacity: Double
     let shadowOpacity: Double
 
-    static func forState(_ state: IslandPresentationState) -> IslandShellStyle {
+    static func forState(_ state: IslandPresentationState, approvalPanelShowsDenyReason: Bool = false) -> IslandShellStyle {
         switch state {
         case .collapsed(.detailed):
             IslandShellStyle(
@@ -39,7 +39,7 @@ struct IslandShellStyle: Equatable {
             )
         case .expanded(.approval(_)):
             IslandShellStyle(
-                size: CGSize(width: 400, height: 270),
+                size: CGSize(width: 440, height: approvalPanelShowsDenyReason ? 370 : 270),
                 topRadius: 8,
                 bottomRadius: 20,
                 backgroundOpacity: 1.0,
@@ -48,7 +48,7 @@ struct IslandShellStyle: Equatable {
             )
         case .expanded(.sessionEnded):
             IslandShellStyle(
-                size: CGSize(width: 360, height: 176),
+                size: CGSize(width: 420, height: 176),
                 topRadius: 8,
                 bottomRadius: 20,
                 backgroundOpacity: 1.0,
@@ -57,7 +57,7 @@ struct IslandShellStyle: Equatable {
             )
         case .expanded(.sessionSuspicious):
             IslandShellStyle(
-                size: CGSize(width: 360, height: 176),
+                size: CGSize(width: 420, height: 176),
                 topRadius: 8,
                 bottomRadius: 20,
                 backgroundOpacity: 1.0,

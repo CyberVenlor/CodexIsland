@@ -53,6 +53,10 @@ final class IslandController: ObservableObject {
     @Published var collapsedMode: CollapsedIslandMode = .detailed
     @Published private(set) var isExpanded = false
     @Published private(set) var activePanel: ExpandedIslandPanel = .sessions
+    @Published private(set) var approvalPanelShowsDenyReason = false
+    @Published private(set) var hoverResetToken = UUID()
+    @Published private(set) var hoverResetRequiresExit = false
+    @Published private(set) var approvalCompletionAnimationToken = UUID()
 
     private var pendingCollapse: DispatchWorkItem?
     private var pendingTransition: DispatchWorkItem?
@@ -175,6 +179,8 @@ final class IslandController: ObservableObject {
         if hasPendingApproval {
             guard approvalPresentationLocked || !isExpanded else { return }
             approvalPresentationLocked = true
+            approvalPanelShowsDenyReason = false
+            hoverResetRequiresExit = false
             targetExpandedState = true
             if !isExpanded {
                 expand()
@@ -186,6 +192,7 @@ final class IslandController: ObservableObject {
         }
 
         guard approvalPresentationLocked else { return }
+        approvalCompletionAnimationToken = UUID()
 
         withAnimation(Self.expandAnimation) {
             activePanel = .approval(status: .completed)
@@ -194,11 +201,7 @@ final class IslandController: ObservableObject {
 
         let completionWorkItem = DispatchWorkItem { [weak self] in
             Task { @MainActor in
-                guard let self else { return }
-                self.approvalPresentationLocked = false
-                self.targetExpandedState = false
-                self.collapse(resetActivePanel: false)
-                self.activePanel = .sessions
+                self?.finishApprovalPresentation()
             }
         }
 
@@ -207,6 +210,15 @@ final class IslandController: ObservableObject {
             deadline: .now() + Self.approvalCompletionDisplayDuration,
             execute: completionWorkItem
         )
+    }
+
+    func updateApprovalPanelLayout(showsDenyReason: Bool) {
+        guard approvalPresentationLocked else { return }
+        guard approvalPanelShowsDenyReason != showsDenyReason else { return }
+
+        withAnimation(Self.expandAnimation) {
+            approvalPanelShowsDenyReason = showsDenyReason
+        }
     }
 
     func presentSessionEndedPanel() {
@@ -267,6 +279,22 @@ final class IslandController: ObservableObject {
         targetExpandedState = false
         collapse(resetActivePanel: false)
         activePanel = .sessions
+    }
+
+    private func finishApprovalPresentation() {
+        pendingApprovalCompletion?.cancel()
+        pendingApprovalCompletion = nil
+        pendingCollapse?.cancel()
+        pendingCollapse = nil
+        pendingTransition?.cancel()
+        pendingTransition = nil
+        approvalPresentationLocked = false
+        approvalPanelShowsDenyReason = false
+        targetExpandedState = false
+        hoverResetRequiresExit = true
+        collapse(resetActivePanel: false)
+        activePanel = .sessions
+        hoverResetToken = UUID()
     }
 
     private var canTransitionNow: Bool {

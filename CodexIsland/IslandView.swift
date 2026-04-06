@@ -12,7 +12,10 @@ struct IslandView: View {
     }
 
     private var shellStyle: IslandShellStyle {
-        IslandShellStyle.forState(state)
+        IslandShellStyle.forState(
+            state,
+            approvalPanelShowsDenyReason: controller.approvalPanelShowsDenyReason
+        )
     }
 
     private var canvasSize: CGSize {
@@ -83,10 +86,12 @@ struct IslandView: View {
         HoverTrackingView { isHovering in
             controller.handleHoverChange(isHovering)
         }
-            .frame(
-                width: shellStyle.size.width,
-                height: shellStyle.size.height + IslandOverlayLayout.topEdgeHoverTolerance
-            )
+        .allowsHoverAfterExit(controller.hoverResetRequiresExit == false)
+        .id(controller.hoverResetToken)
+        .frame(
+            width: shellStyle.size.width,
+            height: shellStyle.size.height + IslandOverlayLayout.topEdgeHoverTolerance
+        )
     }
 
     private var shell: some View {
@@ -119,28 +124,54 @@ struct IslandView: View {
 
 private struct HoverTrackingView: NSViewRepresentable {
     let onHoverChanged: (Bool) -> Void
+    private var allowsHoverWithoutExit = true
+
+    init(onHoverChanged: @escaping (Bool) -> Void) {
+        self.onHoverChanged = onHoverChanged
+    }
 
     func makeNSView(context: Context) -> MouseTrackingNSView {
         let view = MouseTrackingNSView()
         view.onHoverChanged = onHoverChanged
+        view.allowsHoverWithoutExit = allowsHoverWithoutExit
         return view
     }
 
     func updateNSView(_ nsView: MouseTrackingNSView, context: Context) {
         nsView.onHoverChanged = onHoverChanged
+        nsView.allowsHoverWithoutExit = allowsHoverWithoutExit
         nsView.updateTrackingAreas()
+    }
+
+    func allowsHoverAfterExit(_ enabled: Bool) -> HoverTrackingView {
+        var copy = self
+        copy.allowsHoverWithoutExit = enabled
+        return copy
     }
 }
 
 private final class MouseTrackingNSView: NSView {
     var onHoverChanged: ((Bool) -> Void)?
+    var allowsHoverWithoutExit = true {
+        didSet {
+            guard oldValue != allowsHoverWithoutExit else { return }
+            suppressHoverUntilExit = !allowsHoverWithoutExit
+            if suppressHoverUntilExit {
+                setHovering(false)
+            } else {
+                reconcileHoverState()
+            }
+        }
+    }
     private var trackingArea: NSTrackingArea?
     private var isHovering = false
     private var hoverMonitorTimer: Timer?
+    private var suppressHoverUntilExit = false
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         wantsLayer = false
+        suppressHoverUntilExit = !allowsHoverWithoutExit
     }
 
     required init?(coder: NSCoder) {
@@ -162,13 +193,18 @@ private final class MouseTrackingNSView: NSView {
         self.trackingArea = trackingArea
 
         super.updateTrackingAreas()
+        reconcileHoverState()
     }
 
     override func mouseEntered(with event: NSEvent) {
+        guard !suppressHoverUntilExit else { return }
         setHovering(true)
     }
 
     override func mouseExited(with event: NSEvent) {
+        if suppressHoverUntilExit {
+            suppressHoverUntilExit = false
+        }
         setHovering(false)
     }
 
@@ -179,6 +215,7 @@ private final class MouseTrackingNSView: NSView {
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         window?.acceptsMouseMovedEvents = true
+        reconcileHoverState()
     }
 
     override func updateLayer() {
@@ -198,7 +235,17 @@ private final class MouseTrackingNSView: NSView {
 
         let location = convert(window.mouseLocationOutsideOfEventStream, from: nil)
         let hoverBounds = bounds.insetBy(dx: 0, dy: -IslandOverlayLayout.topEdgeHoverTolerance)
-        setHovering(hoverBounds.contains(location))
+        let isInsideBounds = hoverBounds.contains(location)
+
+        if suppressHoverUntilExit {
+            if !isInsideBounds {
+                suppressHoverUntilExit = false
+            }
+            setHovering(false)
+            return
+        }
+
+        setHovering(isInsideBounds)
     }
 
     private func setHovering(_ hovering: Bool) {
@@ -249,7 +296,10 @@ struct IslandContentView: View {
     }
 
     private var expandedSize: CGSize {
-        IslandShellStyle.forState(state).size
+        IslandShellStyle.forState(
+            state,
+            approvalPanelShowsDenyReason: controller.approvalPanelShowsDenyReason
+        ).size
     }
 
     private var isDetailedCollapsed: Bool {
@@ -280,10 +330,22 @@ struct IslandContentView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .mask {
             AnimatedNotchShape(
-                shellWidth: IslandShellStyle.forState(state).size.width,
-                shellHeight: IslandShellStyle.forState(state).size.height,
-                topRadius: IslandShellStyle.forState(state).topRadius,
-                bottomRadius: IslandShellStyle.forState(state).bottomRadius
+                shellWidth: IslandShellStyle.forState(
+                    state,
+                    approvalPanelShowsDenyReason: controller.approvalPanelShowsDenyReason
+                ).size.width,
+                shellHeight: IslandShellStyle.forState(
+                    state,
+                    approvalPanelShowsDenyReason: controller.approvalPanelShowsDenyReason
+                ).size.height,
+                topRadius: IslandShellStyle.forState(
+                    state,
+                    approvalPanelShowsDenyReason: controller.approvalPanelShowsDenyReason
+                ).topRadius,
+                bottomRadius: IslandShellStyle.forState(
+                    state,
+                    approvalPanelShowsDenyReason: controller.approvalPanelShowsDenyReason
+                ).bottomRadius
             )
         }
     }
@@ -449,7 +511,7 @@ struct IslandContentView: View {
                 .environmentObject(settingsStore)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         } else if let status = approvalPanelStatus {
-            ApprovalPanelView(status: status)
+            ApprovalPanelView(status: status, controller: controller)
                 .environmentObject(sessionController)
                 .environmentObject(settingsStore)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -567,8 +629,11 @@ private struct SessionEndedPanelView: View {
 
 private struct ApprovalPanelView: View {
     let status: ApprovalPanelStatus
+    @ObservedObject var controller: IslandController
     @EnvironmentObject private var sessionController: CodexSessionController
     @EnvironmentObject private var settingsStore: SettingsConfigStore
+    @State private var isEnteringDenyReason = false
+    @State private var denyReason = ""
 
     private var l10n: AppLocalization {
         AppLocalization(language: settingsStore.config.appLanguage)
@@ -585,6 +650,7 @@ private struct ApprovalPanelView: View {
                 }
             case .completed:
                 completionView
+                    .id(controller.approvalCompletionAnimationToken)
             }
         }
     }
@@ -616,21 +682,81 @@ private struct ApprovalPanelView: View {
                 }
             }
 
-            HStack(spacing: 10) {
-                Button(l10n.text("Deny", chinese: "拒绝")) {
-                    sessionController.deny(toolCall)
-                }
-                .buttonStyle(.bordered)
-                .tint(.white.opacity(0.8))
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 10) {
+                    ApprovalCapsuleButton(
+                        title: l10n.text("Approve", chinese: "批准"),
+                        fill: Color.green.opacity(0.9),
+                        stroke: Color.green.opacity(0.55)
+                    ) {
+                        controller.updateApprovalPanelLayout(showsDenyReason: false)
+                        isEnteringDenyReason = false
+                        denyReason = ""
+                        sessionController.approve(toolCall)
+                    }
 
-                Button(l10n.text("Approve", chinese: "批准")) {
-                    sessionController.approve(toolCall)
+                    ApprovalCapsuleButton(
+                        title: l10n.text("Deny", chinese: "拒绝"),
+                        fill: Color.red.opacity(0.9),
+                        stroke: Color.red.opacity(0.55)
+                    ) {
+                        withAnimation(.easeInOut(duration: 0.18)) {
+                            isEnteringDenyReason.toggle()
+                            if !isEnteringDenyReason {
+                                denyReason = ""
+                            }
+                        }
+                    }
                 }
-                .buttonStyle(.borderedProminent)
+                .frame(maxWidth: .infinity, alignment: .center)
+
+                if isEnteringDenyReason {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(l10n.text("Block reason", chinese: "拦截原因"))
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.white.opacity(0.7))
+
+                        TextField(
+                            l10n.text("Tell Codex why this tool was blocked", chinese: "告诉 Codex 为什么拦截这个工具"),
+                            text: $denyReason,
+                            axis: .vertical
+                        )
+                        .textFieldStyle(.roundedBorder)
+                        .lineLimit(2...4)
+
+                        HStack(spacing: 8) {
+                            ApprovalCapsuleButton(
+                                title: l10n.text("Confirm Block", chinese: "确认拦截"),
+                                fill: Color.red.opacity(0.9),
+                                stroke: Color.red.opacity(0.55)
+                            ) {
+                                controller.updateApprovalPanelLayout(showsDenyReason: false)
+                                sessionController.deny(toolCall, reason: denyReason)
+                                isEnteringDenyReason = false
+                                denyReason = ""
+                            }
+
+                            ApprovalCapsuleButton(
+                                title: l10n.text("Cancel", chinese: "取消"),
+                                fill: Color.white.opacity(0.08),
+                                stroke: Color.white.opacity(0.12)
+                            ) {
+                                withAnimation(.easeInOut(duration: 0.18)) {
+                                    isEnteringDenyReason = false
+                                    denyReason = ""
+                                }
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .center)
+                    }
+                    .padding(10)
+                    .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                }
             }
             .padding(.top, 2)
-
-            Spacer(minLength: 0)
+            .onChange(of: isEnteringDenyReason) { newValue in
+                controller.updateApprovalPanelLayout(showsDenyReason: newValue)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
@@ -697,6 +823,117 @@ private struct ApprovalPanelView: View {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .stroke(accentColor.opacity(0.28), lineWidth: 1)
         }
+    }
+}
+
+private struct ToolApprovalActionBar: View {
+    let approveTitle: String
+    let denyTitle: String
+    let denyReasonTitle: String
+    let denyReasonPlaceholder: String
+    let confirmDenyTitle: String
+    let onApprove: () -> Void
+    let onDeny: (String) -> Void
+
+    @State private var isEnteringDenyReason = false
+    @State private var denyReason = ""
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                ApprovalCapsuleButton(
+                    title: approveTitle,
+                    fill: Color.green.opacity(0.9),
+                    stroke: Color.green.opacity(0.55)
+                ) {
+                    onApprove()
+                }
+
+                ApprovalCapsuleButton(
+                    title: denyTitle,
+                    fill: Color.red.opacity(0.9),
+                    stroke: Color.red.opacity(0.55)
+                ) {
+                    withAnimation(.easeInOut(duration: 0.18)) {
+                        isEnteringDenyReason.toggle()
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .center)
+
+            if isEnteringDenyReason {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(denyReasonTitle)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.7))
+
+                    TextField(denyReasonPlaceholder, text: $denyReason, axis: .vertical)
+                        .textFieldStyle(.roundedBorder)
+                        .lineLimit(2...4)
+
+                    HStack(spacing: 8) {
+                        ApprovalCapsuleButton(
+                            title: confirmDenyTitle,
+                            fill: Color.red.opacity(0.9),
+                            stroke: Color.red.opacity(0.55)
+                        ) {
+                            onDeny(denyReason)
+                        }
+
+                        ApprovalCapsuleButton(
+                            title: "Cancel",
+                            fill: Color.white.opacity(0.08),
+                            stroke: Color.white.opacity(0.12)
+                        ) {
+                            withAnimation(.easeInOut(duration: 0.18)) {
+                                isEnteringDenyReason = false
+                                denyReason = ""
+                            }
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .center)
+                }
+                .padding(10)
+                .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            }
+        }
+    }
+}
+
+private struct ApprovalCapsuleButton: View {
+    let title: String
+    let fill: Color
+    let stroke: Color
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+        }
+        .buttonStyle(ApprovalCapsuleButtonStyle(fill: fill, stroke: stroke))
+    }
+}
+
+private struct ApprovalCapsuleButtonStyle: ButtonStyle {
+    let fill: Color
+    let stroke: Color
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 18)
+            .padding(.vertical, 9)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(fill.opacity(configuration.isPressed ? 0.82 : 1))
+            )
+            .overlay {
+                Capsule(style: .continuous)
+                    .stroke(stroke, lineWidth: 1)
+            }
+            .scaleEffect(configuration.isPressed ? 0.98 : 1)
+            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
     }
 }
 
@@ -852,17 +1089,19 @@ struct CodexSessionListView: View {
                             }
 
                             if toolCall.requiresApproval {
-                                HStack {
-                                    Button(l10n.text("Approve", chinese: "批准")) {
+                                ToolApprovalActionBar(
+                                    approveTitle: l10n.text("Approve", chinese: "批准"),
+                                    denyTitle: l10n.text("Deny", chinese: "拒绝"),
+                                    denyReasonTitle: l10n.text("Block reason", chinese: "拦截原因"),
+                                    denyReasonPlaceholder: l10n.text("Tell Codex why this tool was blocked", chinese: "告诉 Codex 为什么拦截这个工具"),
+                                    confirmDenyTitle: l10n.text("Confirm Block", chinese: "确认拦截"),
+                                    onApprove: {
                                         sessionController.approve(toolCall)
+                                    },
+                                    onDeny: { reason in
+                                        sessionController.deny(toolCall, reason: reason)
                                     }
-                                    .buttonStyle(.borderedProminent)
-
-                                    Button(l10n.text("Deny", chinese: "拒绝")) {
-                                        sessionController.deny(toolCall)
-                                    }
-                                    .buttonStyle(.bordered)
-                                }
+                                )
                             } else if let approvalStatus = toolCall.approvalStatus {
                                 Text(l10n.approvalStatusLabel(approvalStatus))
                                     .font(.caption)
@@ -882,9 +1121,15 @@ struct CodexSessionListView: View {
                 sessionDetailBox(label: "prompt", text: lastUserPrompt)
             }
 
-            if let lastAssistantMessage = session.lastAssistantMessage, !lastAssistantMessage.isEmpty {
-                sessionDetailBox(label: "reply", text: lastAssistantMessage)
-            }
+            sessionDetailBox(
+                label: "reply",
+                text: {
+                    if let lastAssistantMessage = session.lastAssistantMessage, !lastAssistantMessage.isEmpty {
+                        return lastAssistantMessage
+                    }
+                    return "..."
+                }()
+            )
 
             sessionDetailBox(
                 label: "time",
@@ -931,7 +1176,8 @@ struct CodexSessionListView: View {
                 Text(text)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .lineLimit(2)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 9)
                     .padding(.vertical, 4)

@@ -94,12 +94,12 @@ final class CodexSessionController: ObservableObject {
         )
     }
 
-    func deny(_ session: CodexRecentSession) {
+    func deny(_ session: CodexRecentSession, reason: String? = nil) {
         do {
             resolve(
                 session,
                 relayResponse: .deny(
-                    CodexHookResponse.denyToolUse(reason: "Denied from CodexIsland")
+                    CodexHookResponse.denyToolUse(reason: denyReasonText(reason))
                 ),
                 approvalStatus: "denied"
             )
@@ -112,12 +112,12 @@ final class CodexSessionController: ObservableObject {
         resolve(toolCall, approvalStatus: "approved", relayResponse: .approve)
     }
 
-    func deny(_ toolCall: CodexToolCall) {
+    func deny(_ toolCall: CodexToolCall, reason: String? = nil) {
         resolve(
             toolCall,
             approvalStatus: "denied",
             relayResponse: .deny(
-                CodexHookResponse.denyToolUse(reason: "Denied from CodexIsland")
+                CodexHookResponse.denyToolUse(reason: denyReasonText(reason))
             )
         )
     }
@@ -553,6 +553,15 @@ final class CodexSessionController: ObservableObject {
         }
 
         return session.projectName
+    }
+
+    private func denyReasonText(_ userReason: String?) -> String {
+        let trimmed = userReason?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !trimmed.isEmpty else {
+            return "Denied from CodexIsland"
+        }
+
+        return "Denied from CodexIsland: \(trimmed)"
     }
 }
 

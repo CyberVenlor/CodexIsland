@@ -134,7 +134,10 @@ final class IslandOverlayController: NSObject {
                 return .zero
             }
 
-            let shellSize = IslandShellStyle.forState(self.islandController.presentationState).size
+            let shellSize = IslandShellStyle.forState(
+                self.islandController.presentationState,
+                approvalPanelShowsDenyReason: self.islandController.approvalPanelShowsDenyReason
+            ).size
             return IslandOverlayLayout.interactiveRect(for: shellSize, in: containerView.bounds)
         }
         let hostingView = TransparentHostingView(
@@ -235,7 +238,10 @@ final class IslandOverlayController: NSObject {
 
         let mouseLocation = NSEvent.mouseLocation
         let localPoint = panel.convertPoint(fromScreen: mouseLocation)
-        let shellSize = IslandShellStyle.forState(islandController.presentationState).size
+        let shellSize = IslandShellStyle.forState(
+            islandController.presentationState,
+            approvalPanelShowsDenyReason: islandController.approvalPanelShowsDenyReason
+        ).size
         let interactiveRect = IslandOverlayLayout.interactiveRect(for: shellSize, in: contentBounds)
 
         guard !interactiveRect.contains(localPoint) else {
@@ -251,7 +257,10 @@ final class IslandOverlayController: NSObject {
 
         let mouseLocation = NSEvent.mouseLocation
         let localPoint = panel.convertPoint(fromScreen: mouseLocation)
-        let shellSize = IslandShellStyle.forState(islandController.presentationState).size
+        let shellSize = IslandShellStyle.forState(
+            islandController.presentationState,
+            approvalPanelShowsDenyReason: islandController.approvalPanelShowsDenyReason
+        ).size
         let interactiveRect = IslandOverlayLayout.interactiveRect(for: shellSize, in: contentBounds)
         panel.ignoresMouseEvents = !interactiveRect.contains(localPoint)
     }

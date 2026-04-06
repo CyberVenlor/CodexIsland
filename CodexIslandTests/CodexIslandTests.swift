@@ -175,6 +175,39 @@ struct CodexIslandTests {
     }
 
     @MainActor
+    @Test func denyIncludesUserReasonInRelayResponse() async throws {
+        let controller = CodexSessionController(
+            threadNameStore: CodexSessionThreadNameStore(
+                databaseURL: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString),
+                indexURL: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            )
+        )
+
+        let pair = try makeSocketPair()
+        defer {
+            close(pair.0)
+            close(pair.1)
+        }
+
+        _ = controller.handleIncomingPayload(
+            preToolUsePayload(sessionID: "session-1", toolUseID: "tool-1", command: "rm -rf build"),
+            client: pair.0
+        )
+
+        let tool = try #require(controller.pendingApprovalToolCall)
+        controller.deny(tool, reason: "This command would delete build artifacts unexpectedly")
+
+        let responseData = try FileHandle(fileDescriptor: pair.1, closeOnDealloc: false).readToEnd() ?? Data()
+        let response = try JSONSerialization.jsonObject(with: responseData) as? [String: Any]
+        let hookResponse = response?["hookResponse"] as? [String: Any]
+        let hookSpecificOutput = hookResponse?["hookSpecificOutput"] as? [String: Any]
+
+        #expect(response?["decision"] as? String == "deny")
+        #expect(hookResponse?["reason"] as? String == "Denied from CodexIsland: This command would delete build artifacts unexpectedly")
+        #expect(hookSpecificOutput?["permissionDecisionReason"] as? String == "Denied from CodexIsland: This command would delete build artifacts unexpectedly")
+    }
+
+    @MainActor
     @Test func completedStopPublishesSessionEndedNotification() async throws {
         let controller = CodexSessionController(
             threadNameStore: CodexSessionThreadNameStore(
