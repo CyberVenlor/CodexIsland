@@ -7,6 +7,7 @@ final class CodexSessionController: ObservableObject {
     @Published private(set) var sessions: [CodexSessionGroup] = []
     @Published private(set) var runningSessionCount: Int = 0
     @Published private(set) var pendingApprovalToolCall: CodexToolCall?
+    @Published private(set) var approvalDecisionCounts = ApprovalDecisionCounts()
 
     private let persistence: CodexSessionPersisting
     private let threadNameStore: CodexSessionThreadNameStore
@@ -43,6 +44,9 @@ final class CodexSessionController: ObservableObject {
 
     func handleIncomingPayload(_ data: Data, client: Int32) -> CodexHookRelayServer.PayloadDisposition {
         let pendingApproval = PendingApproval.decode(from: data)
+        if let pendingApproval {
+            beginApprovalCycleIfNeeded(with: pendingApproval.key)
+        }
 
         if let session = CodexSessionProjection.session(from: data) {
             upsert(session: session, pendingApprovalKey: pendingApproval?.key)
@@ -137,6 +141,7 @@ final class CodexSessionController: ObservableObject {
             }
         }
 
+        approvalDecisionCounts.record(status: approvalStatus)
         removeResolvedToolCall(withID: session.id, approvalKey: key)
     }
 
@@ -169,6 +174,7 @@ final class CodexSessionController: ObservableObject {
             debugLogger.log("failed to persist approval status for \(toolCall.id): \(error.localizedDescription)")
         }
 
+        approvalDecisionCounts.record(status: approvalStatus)
         removeResolvedToolCall(withID: toolCall.id, approvalKey: toolCall.id)
     }
 
@@ -310,6 +316,14 @@ final class CodexSessionController: ObservableObject {
         pendingApprovalToolCall != nil
     }
 
+    private func beginApprovalCycleIfNeeded(with key: String) {
+        guard approvalQueue.isEmpty, pendingApprovalClients[key] == nil else {
+            return
+        }
+
+        approvalDecisionCounts = ApprovalDecisionCounts()
+    }
+
     private func removeResolvedToolCall(withID id: String, approvalKey: String) {
         sessionIndex.removeValue(forKey: id)
         pendingApprovalClients.removeValue(forKey: approvalKey)
@@ -390,6 +404,22 @@ final class CodexSessionController: ObservableObject {
         }
 
         return session.projectName
+    }
+}
+
+struct ApprovalDecisionCounts: Equatable {
+    var approved: Int = 0
+    var denied: Int = 0
+
+    mutating func record(status: String) {
+        switch status {
+        case "approved":
+            approved += 1
+        case "denied":
+            denied += 1
+        default:
+            break
+        }
     }
 }
 

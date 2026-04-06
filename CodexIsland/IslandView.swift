@@ -463,6 +463,19 @@ private struct ApprovalPanelView: View {
                 .font(.headline)
                 .foregroundStyle(.white)
 
+            HStack(spacing: 12) {
+                decisionCountPill(
+                    label: "Approved",
+                    count: sessionController.approvalDecisionCounts.approved,
+                    color: .green
+                )
+                decisionCountPill(
+                    label: "Blocked",
+                    count: sessionController.approvalDecisionCounts.denied,
+                    color: .red
+                )
+            }
+
             Text("All pending unsafe tools have been processed.")
                 .font(.caption)
                 .foregroundStyle(.white.opacity(0.65))
@@ -482,6 +495,27 @@ private struct ApprovalPanelView: View {
                 .foregroundStyle(.white.opacity(0.9))
                 .lineLimit(2)
                 .textSelection(.enabled)
+        }
+    }
+
+    private func decisionCountPill(label: String, count: Int, color: Color) -> some View {
+        let accentColor: Color = count == 0 ? .gray : color
+
+        VStack(spacing: 4) {
+            Text("\(count)")
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(.white)
+
+            Text(label)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.white.opacity(0.72))
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 10)
+        .background(accentColor.opacity(0.14), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(accentColor.opacity(0.28), lineWidth: 1)
         }
     }
 }
