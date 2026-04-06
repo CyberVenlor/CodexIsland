@@ -13,6 +13,7 @@ struct SettingsConfig: Codable {
     var completedIslandDisplayDuration = 2
     var suspiciousIslandDisplayDuration = 2
     var showSessionEndNotifications = true
+    var codexExternalApprovalModeEnabled = false
 
     private enum CodingKeys: String, CodingKey {
         case launchAtLogin
@@ -26,6 +27,7 @@ struct SettingsConfig: Codable {
         case completedIslandDisplayDuration
         case suspiciousIslandDisplayDuration
         case showSessionEndNotifications
+        case codexExternalApprovalModeEnabled
         case legacyEnablePreHook = "enablePreHook"
         case legacyEnablePostHook = "enablePostHook"
     }
@@ -49,6 +51,7 @@ struct SettingsConfig: Codable {
         completedIslandDisplayDuration = max(0, try container.decodeIfPresent(Int.self, forKey: .completedIslandDisplayDuration) ?? 2)
         suspiciousIslandDisplayDuration = max(0, try container.decodeIfPresent(Int.self, forKey: .suspiciousIslandDisplayDuration) ?? 2)
         showSessionEndNotifications = try container.decodeIfPresent(Bool.self, forKey: .showSessionEndNotifications) ?? true
+        codexExternalApprovalModeEnabled = try container.decodeIfPresent(Bool.self, forKey: .codexExternalApprovalModeEnabled) ?? false
     }
 
     func encode(to encoder: Encoder) throws {
@@ -64,6 +67,7 @@ struct SettingsConfig: Codable {
         try container.encode(completedIslandDisplayDuration, forKey: .completedIslandDisplayDuration)
         try container.encode(suspiciousIslandDisplayDuration, forKey: .suspiciousIslandDisplayDuration)
         try container.encode(showSessionEndNotifications, forKey: .showSessionEndNotifications)
+        try container.encode(codexExternalApprovalModeEnabled, forKey: .codexExternalApprovalModeEnabled)
     }
 }
 
@@ -80,10 +84,12 @@ final class SettingsConfigStore: ObservableObject {
     private let decoder = JSONDecoder()
     private let configURL: URL
     private let hooksConfigStore: CodexHooksConfigStore
+    private let codexCLIConfigStore: CodexCLIConfigStore
 
     init(
         fileManager: FileManager = .default,
-        hooksConfigStore: CodexHooksConfigStore = CodexHooksConfigStore()
+        hooksConfigStore: CodexHooksConfigStore = CodexHooksConfigStore(),
+        codexCLIConfigStore: CodexCLIConfigStore = CodexCLIConfigStore()
     ) {
         let appSupportURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? fileManager.temporaryDirectory
@@ -93,11 +99,13 @@ final class SettingsConfigStore: ObservableObject {
         self.fileManager = fileManager
         self.configURL = configURL
         self.hooksConfigStore = hooksConfigStore
+        self.codexCLIConfigStore = codexCLIConfigStore
         self.config = Self.loadConfig(
             fileManager: fileManager,
             decoder: decoder,
             configURL: configURL,
-            hooksConfigStore: hooksConfigStore
+            hooksConfigStore: hooksConfigStore,
+            codexCLIConfigStore: codexCLIConfigStore
         )
         save()
     }
@@ -106,7 +114,8 @@ final class SettingsConfigStore: ObservableObject {
         fileManager: FileManager,
         decoder: JSONDecoder,
         configURL: URL,
-        hooksConfigStore: CodexHooksConfigStore
+        hooksConfigStore: CodexHooksConfigStore,
+        codexCLIConfigStore: CodexCLIConfigStore
     ) -> SettingsConfig {
         let baseConfig: SettingsConfig
 
@@ -118,7 +127,7 @@ final class SettingsConfigStore: ObservableObject {
             baseConfig = SettingsConfig()
         }
 
-        return hooksConfigStore.mergingHooksConfig(into: baseConfig)
+        return codexCLIConfigStore.mergingCLIConfig(into: hooksConfigStore.mergingHooksConfig(into: baseConfig))
     }
 
     private func save() {
@@ -130,8 +139,14 @@ final class SettingsConfigStore: ObservableObject {
             let data = try encoder.encode(config)
             try data.write(to: configURL, options: .atomic)
             try hooksConfigStore.write(config: config)
+            try codexCLIConfigStore.write(config: config)
         } catch {
             assertionFailure("Failed to save settings config: \(error)")
         }
+    }
+
+    func setCodexExternalApprovalModeEnabled(_ isEnabled: Bool) {
+        guard config.codexExternalApprovalModeEnabled != isEnabled else { return }
+        config.codexExternalApprovalModeEnabled = isEnabled
     }
 }

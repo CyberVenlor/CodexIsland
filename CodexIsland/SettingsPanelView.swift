@@ -239,6 +239,36 @@ struct SettingsPanelView: View {
                         .foregroundStyle(.white.opacity(0.52))
                 }
             }
+
+            settingsCard(l10n.text("Codex Config", chinese: "Codex 配置")) {
+                settingsValueRow(
+                    l10n.text("External approval mode", chinese: "外部审批模式"),
+                    value: settingsStore.config.codexExternalApprovalModeEnabled
+                        ? l10n.text("Enabled", chinese: "已启用")
+                        : l10n.text("Default", chinese: "默认")
+                )
+
+                Text(l10n.text(
+                    "Write `approval_policy = \"never\"` and `sandbox_mode = \"danger-full-access\"` into `~/.codex/config.toml` so Codex relies on CodexIsland's external approval flow.",
+                    chinese: "将 `approval_policy = \"never\"` 和 `sandbox_mode = \"danger-full-access\"` 写入 `~/.codex/config.toml`，让 Codex 使用 CodexIsland 的外部审批流程。"
+                ))
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.52))
+
+                HStack(spacing: 10) {
+                    Button(l10n.text("Apply external approval mode", chinese: "应用外部审批模式")) {
+                        settingsStore.setCodexExternalApprovalModeEnabled(true)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(settingsStore.config.codexExternalApprovalModeEnabled)
+
+                    Button(l10n.text("Restore default", chinese: "恢复默认")) {
+                        settingsStore.setCodexExternalApprovalModeEnabled(false)
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(!settingsStore.config.codexExternalApprovalModeEnabled)
+                }
+            }
         }
     }
 

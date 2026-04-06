@@ -755,6 +755,95 @@ struct CodexIslandTests {
         #expect(command?["timeout"] as? Int == 300)
     }
 
+    @Test func codexCLIConfigStoreEnablesExternalApprovalMode() throws {
+        let directoryURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+
+        let configURL = directoryURL.appendingPathComponent("config.toml")
+        let store = CodexCLIConfigStore(configURL: configURL)
+
+        var config = SettingsConfig()
+        config.codexExternalApprovalModeEnabled = true
+
+        try store.write(config: config)
+
+        let contents = try String(contentsOf: configURL, encoding: .utf8)
+        #expect(contents.contains("approval_policy = \"never\""))
+        #expect(contents.contains("sandbox_mode = \"danger-full-access\""))
+
+        let merged = store.mergingCLIConfig(into: SettingsConfig())
+        #expect(merged.codexExternalApprovalModeEnabled == true)
+    }
+
+    @Test func codexCLIConfigStoreInsertsTopLevelKeysBeforeSections() throws {
+        let directoryURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+
+        let configURL = directoryURL.appendingPathComponent("config.toml")
+        try """
+        model = "gpt-5.4"
+
+        [profiles.dev]
+        model = "gpt-5.4-mini"
+        """.write(to: configURL, atomically: true, encoding: .utf8)
+
+        let store = CodexCLIConfigStore(configURL: configURL)
+        var config = SettingsConfig()
+        config.codexExternalApprovalModeEnabled = true
+
+        try store.write(config: config)
+
+        let contents = try String(contentsOf: configURL, encoding: .utf8)
+        let approvalIndex = try #require(contents.range(of: "approval_policy = \"never\"")?.lowerBound)
+        let sectionIndex = try #require(contents.range(of: "[profiles.dev]")?.lowerBound)
+        #expect(approvalIndex < sectionIndex)
+    }
+
+    @Test func codexCLIConfigStoreRestoresDefaultWithoutTouchingOtherSettings() throws {
+        let directoryURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+
+        let configURL = directoryURL.appendingPathComponent("config.toml")
+        let original = """
+        model = "gpt-5.4"
+        approval_policy = "never"
+        sandbox_mode = "danger-full-access"
+
+        [profiles.dev]
+        sandbox_mode = "workspace-write"
+        """
+        try original.write(to: configURL, atomically: true, encoding: .utf8)
+
+        let store = CodexCLIConfigStore(configURL: configURL)
+        var config = SettingsConfig()
+        config.codexExternalApprovalModeEnabled = false
+
+        try store.write(config: config)
+
+        let contents = try String(contentsOf: configURL, encoding: .utf8)
+        #expect(contents.contains("model = \"gpt-5.4\""))
+        #expect(!contents.contains("approval_policy = \"never\""))
+        #expect(!contents.contains("sandbox_mode = \"danger-full-access\"\n\n[profiles.dev]"))
+        #expect(contents.contains("[profiles.dev]"))
+        #expect(contents.contains("sandbox_mode = \"workspace-write\""))
+    }
+
+    @Test func codexCLIConfigStoreDoesNotCreateEmptyFileForDefaultMode() throws {
+        let directoryURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+
+        let configURL = directoryURL.appendingPathComponent("config.toml")
+        let store = CodexCLIConfigStore(configURL: configURL)
+
+        try store.write(config: SettingsConfig())
+
+        #expect(FileManager.default.fileExists(atPath: configURL.path) == false)
+    }
+
     @MainActor
     @Test func pendingApprovalAutoDeniesBeforeHookTimeout() async throws {
         let controller = CodexSessionController(
