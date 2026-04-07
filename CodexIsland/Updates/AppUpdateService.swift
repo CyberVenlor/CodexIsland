@@ -145,14 +145,18 @@ final class GitHubAppUpdateService: AppUpdateServing {
     }
 
     private func fetchVersionConfig(from url: URL) async throws -> AppUpdateConfig {
-        var request = URLRequest(url: url)
+        let requestURL = cacheBustedURL(from: url)
+        var request = URLRequest(url: requestURL, cachePolicy: .reloadIgnoringLocalCacheData)
         request.setValue("text/plain", forHTTPHeaderField: "Accept")
         request.setValue("CodexIsland", forHTTPHeaderField: "User-Agent")
-        log("HTTP GET \(url.absoluteString)")
+        request.setValue("no-cache, no-store, max-age=0, must-revalidate", forHTTPHeaderField: "Cache-Control")
+        request.setValue("no-cache", forHTTPHeaderField: "Pragma")
+        request.setValue("0", forHTTPHeaderField: "Expires")
+        log("HTTP GET \(requestURL.absoluteString)")
 
         let (data, response) = try await session.data(for: request)
-        try validate(response: response)
-        log("HTTP success \(url.absoluteString) bytes=\(data.count)")
+        try validate(response: response, url: requestURL)
+        log("HTTP success \(requestURL.absoluteString) bytes=\(data.count)")
 
         guard let contents = String(data: data, encoding: .utf8) else {
             throw AppUpdateError.invalidVersionConfig("Unable to decode config as UTF-8")
@@ -168,7 +172,7 @@ final class GitHubAppUpdateService: AppUpdateServing {
         log("HTTP GET \(url.absoluteString)")
 
         let (data, response) = try await session.data(for: request)
-        try validate(response: response)
+        try validate(response: response, url: url)
         log("HTTP success \(url.absoluteString) bytes=\(data.count)")
         return try decoder.decode(T.self, from: data)
     }
@@ -180,7 +184,7 @@ final class GitHubAppUpdateService: AppUpdateServing {
         log("Downloading asset from \(url.absoluteString)")
 
         let (temporaryURL, response) = try await session.download(for: request)
-        try validate(response: response)
+        try validate(response: response, url: url)
 
         let destinationURL = directory.appendingPathComponent(url.lastPathComponent)
         if fileManager.fileExists(atPath: destinationURL.path) {
@@ -249,16 +253,27 @@ final class GitHubAppUpdateService: AppUpdateServing {
         return asset
     }
 
-    private func validate(response: URLResponse) throws {
+    private func validate(response: URLResponse, url: URL) throws {
         guard let httpResponse = response as? HTTPURLResponse else {
-            log("Received invalid non-HTTP response.")
+            log("Received invalid non-HTTP response. url=\(url.absoluteString)")
             throw AppUpdateError.invalidHTTPResponse
         }
 
         guard (200...299).contains(httpResponse.statusCode) else {
-            log("HTTP request failed with status \(httpResponse.statusCode)")
+            log("HTTP request failed with status \(httpResponse.statusCode) url=\(url.absoluteString)")
             throw AppUpdateError.unexpectedStatusCode(httpResponse.statusCode)
         }
+    }
+
+    private func cacheBustedURL(from url: URL) -> URL {
+        guard var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            return url
+        }
+
+        var queryItems = components.queryItems ?? []
+        queryItems.append(URLQueryItem(name: "t", value: String(Int(Date().timeIntervalSince1970))))
+        components.queryItems = queryItems
+        return components.url ?? url
     }
 
     private func runProcess(executableURL: URL, arguments: [String]) async throws {

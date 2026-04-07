@@ -1,9 +1,9 @@
-APP_MARKETING_VERSION = 1.0.1
+APP_MARKETING_VERSION = 0.0.2
 APP_BUILD_VERSION = 3
 APP_MINIMUM_SUPPORTED_VERSION = 0.0.1
 APP_FORCE_UPDATE = NO
-APP_RELEASE_TAG = v1.0.1
+APP_RELEASE_TAG = v0.0.2
 APP_RELEASE_ASSET_NAME = CodexIsland.app.zip
-APP_RELEASE_ASSET_URL = https://github.com/CyberVenlor/CodexIsland/releases/download/v1.0.1/CodexIsland.app.zip
-APP_RELEASE_NOTES = 1.0.1 update.
+APP_RELEASE_ASSET_URL = https://github.com/CyberVenlor/CodexIsland/releases/download/v0.0.2/CodexIsland.app.zip
+APP_RELEASE_NOTES = 0.0.2 update.
 APP_SECURITY_NOTICE =

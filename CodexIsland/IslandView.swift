@@ -659,6 +659,8 @@ private struct AppUpdatePanelView: View {
                                 ) {
                                     appUpdateController.dismissUpdate()
                                 }
+                            } else {
+                                quitButton
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .center)
@@ -763,10 +765,22 @@ private struct AppUpdatePanelView: View {
                 ) {
                     appUpdateController.dismissUpdate()
                 }
+            } else {
+                quitButton
             }
         }
         .frame(maxWidth: .infinity, alignment: .center)
         .padding(.top, 2)
+    }
+
+    private var quitButton: some View {
+        ApprovalCapsuleButton(
+            title: l10n.text("Quit", chinese: "退出"),
+            fill: Color.red.opacity(0.88),
+            stroke: Color.red.opacity(0.5)
+        ) {
+            NSApplication.shared.terminate(nil)
+        }
     }
 }
 
