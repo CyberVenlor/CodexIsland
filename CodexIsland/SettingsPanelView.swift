@@ -228,6 +228,32 @@ struct SettingsPanelView: View {
                 }
                 .pickerStyle(.menu)
             }
+
+            settingsCard(l10n.text("Appearance", chinese: "外观")) {
+                SettingsColorPickerRow(
+                    title: l10n.text("Completed color", chinese: "Completed 颜色"),
+                    description: l10n.text(
+                        "Used by the collapsed island session counter and cat animation when no session is running.",
+                        chinese: "当没有 session 在运行时，用于 collapsed island 的 session 计数器和猫动画。"
+                    ),
+                    selection: Binding(
+                        get: { settingsStore.config.islandCompletedColor.swiftUIColor },
+                        set: { settingsStore.config.islandCompletedColor = SettingsColor(color: $0) }
+                    )
+                )
+
+                SettingsColorPickerRow(
+                    title: l10n.text("Running color", chinese: "Running 颜色"),
+                    description: l10n.text(
+                        "Used by the collapsed island session counter and cat animation while sessions are running.",
+                        chinese: "当 session 正在运行时，用于 collapsed island 的 session 计数器和猫动画。"
+                    ),
+                    selection: Binding(
+                        get: { settingsStore.config.islandRunningColor.swiftUIColor },
+                        set: { settingsStore.config.islandRunningColor = SettingsColor(color: $0) }
+                    )
+                )
+            }
         }
     }
 
@@ -439,6 +465,107 @@ private struct SettingsNumberStepper: View {
 
     private var controlBackground: Color {
         Color.white.opacity(0.08)
+    }
+}
+
+private struct SettingsColorPickerRow: View {
+    let title: String
+    let description: String
+    @Binding var selection: Color
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.subheadline)
+                    .foregroundStyle(.white)
+
+                Text(description)
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.52))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 12)
+
+            Button {
+                SharedColorPanelController.shared.present(
+                    color: selection,
+                    onChange: { selection = $0 }
+                )
+            } label: {
+                HStack(spacing: 10) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(Color.black.opacity(0.22))
+                            .frame(width: 30, height: 30)
+
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(selection)
+                            .frame(width: 22, height: 22)
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .stroke(Color.white.opacity(0.24), lineWidth: 1)
+                            }
+                    }
+
+                    Text("Choose")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.92))
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 9)
+                .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                }
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(Color.black.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color.white.opacity(0.05), lineWidth: 1)
+        }
+    }
+}
+
+@MainActor
+private final class SharedColorPanelController: NSObject {
+    static let shared = SharedColorPanelController()
+
+    private var onChange: ((Color) -> Void)?
+
+    private override init() {
+        super.init()
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handlePanelColorDidChange(_:)),
+            name: NSColorPanel.colorDidChangeNotification,
+            object: nil
+        )
+    }
+
+    func present(color: Color, onChange: @escaping (Color) -> Void) {
+        self.onChange = onChange
+
+        let panel = NSColorPanel.shared
+        panel.color = NSColor(color).usingColorSpace(.sRGB) ?? .systemBlue
+        panel.showsAlpha = false
+        panel.isContinuous = true
+
+        NSApp.activate(ignoringOtherApps: true)
+        panel.orderFrontRegardless()
+    }
+
+    @objc
+    private func handlePanelColorDidChange(_ notification: Notification) {
+        guard let panel = notification.object as? NSColorPanel else { return }
+        let color = panel.color.usingColorSpace(.sRGB) ?? panel.color
+        onChange?(Color(color))
     }
 }
 

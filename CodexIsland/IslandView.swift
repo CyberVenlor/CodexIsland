@@ -331,7 +331,9 @@ struct IslandContentView: View {
     }
 
     private var collapsedActivityColor: Color {
-        sessionController.runningSessionCount > 0 ? .green : .blue
+        sessionController.runningSessionCount > 0
+            ? settingsStore.config.islandRunningColor.swiftUIColor
+            : settingsStore.config.islandCompletedColor.swiftUIColor
     }
 
     var body: some View {
@@ -1941,13 +1943,14 @@ struct CodexSessionListView: View {
 }
 
 private struct EmptySessionStateView: View {
+    @EnvironmentObject private var settingsStore: SettingsConfigStore
     let title: String
     let description: String
 
     var body: some View {
         VStack(spacing: 14) {
             AnimatedSpriteIcon(
-                color: .blue,
+                color: settingsStore.config.islandCompletedColor.swiftUIColor,
                 hasRunningSessions: false,
                 isVisible: true,
                 scale: 4

@@ -899,6 +899,42 @@ struct CodexIslandTests {
         #expect(FileManager.default.fileExists(atPath: configURL.path) == false)
     }
 
+    @Test func settingsConfigDecodesDefaultIslandColorsWhenMissing() throws {
+        let data = """
+        {
+          "launchAtLogin": true,
+          "displayName": "Faker",
+          "preferredLanguage": "English",
+          "hooksEnabled": true,
+          "enablePreToolUseHook": true,
+          "enablePostToolUseHook": false,
+          "preToolUseTimeout": 300,
+          "suspiciousSessionTimeout": 60,
+          "completedIslandDisplayDuration": 2,
+          "suspiciousIslandDisplayDuration": 2,
+          "showSessionEndNotifications": true,
+          "codexExternalApprovalModeEnabled": false
+        }
+        """.data(using: .utf8)!
+
+        let decoded = try JSONDecoder().decode(SettingsConfig.self, from: data)
+
+        #expect(decoded.islandCompletedColor == .islandCompletedDefault)
+        #expect(decoded.islandRunningColor == .islandRunningDefault)
+    }
+
+    @Test func settingsConfigRoundTripsCustomIslandColors() throws {
+        var config = SettingsConfig()
+        config.islandCompletedColor = SettingsColor(red: 0.12, green: 0.34, blue: 0.56)
+        config.islandRunningColor = SettingsColor(red: 0.65, green: 0.43, blue: 0.21)
+
+        let data = try JSONEncoder().encode(config)
+        let decoded = try JSONDecoder().decode(SettingsConfig.self, from: data)
+
+        #expect(decoded.islandCompletedColor == config.islandCompletedColor)
+        #expect(decoded.islandRunningColor == config.islandRunningColor)
+    }
+
     @MainActor
     @Test func pendingApprovalAutoDeniesBeforeHookTimeout() async throws {
         let controller = CodexSessionController(

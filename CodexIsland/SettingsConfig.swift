@@ -1,5 +1,35 @@
+import AppKit
 import Combine
 import Foundation
+import SwiftUI
+
+struct SettingsColor: Codable, Equatable {
+    var red: Double
+    var green: Double
+    var blue: Double
+
+    init(red: Double, green: Double, blue: Double) {
+        self.red = min(max(red, 0), 1)
+        self.green = min(max(green, 0), 1)
+        self.blue = min(max(blue, 0), 1)
+    }
+
+    init(color: Color) {
+        let nsColor = NSColor(color).usingColorSpace(.sRGB) ?? .systemBlue
+        self.init(
+            red: Double(nsColor.redComponent),
+            green: Double(nsColor.greenComponent),
+            blue: Double(nsColor.blueComponent)
+        )
+    }
+
+    var swiftUIColor: Color {
+        Color(red: red, green: green, blue: blue)
+    }
+
+    static let islandCompletedDefault = SettingsColor(red: 0, green: 0.478, blue: 1)
+    static let islandRunningDefault = SettingsColor(red: 0.204, green: 0.78, blue: 0.349)
+}
 
 struct SettingsConfig: Codable, Equatable {
     var launchAtLogin = true
@@ -14,6 +44,8 @@ struct SettingsConfig: Codable, Equatable {
     var suspiciousIslandDisplayDuration = 2
     var showSessionEndNotifications = true
     var codexExternalApprovalModeEnabled = false
+    var islandCompletedColor = SettingsColor.islandCompletedDefault
+    var islandRunningColor = SettingsColor.islandRunningDefault
 
     private enum CodingKeys: String, CodingKey {
         case launchAtLogin
@@ -28,6 +60,8 @@ struct SettingsConfig: Codable, Equatable {
         case suspiciousIslandDisplayDuration
         case showSessionEndNotifications
         case codexExternalApprovalModeEnabled
+        case islandCompletedColor
+        case islandRunningColor
         case legacyEnablePreHook = "enablePreHook"
         case legacyEnablePostHook = "enablePostHook"
     }
@@ -52,6 +86,10 @@ struct SettingsConfig: Codable, Equatable {
         suspiciousIslandDisplayDuration = max(0, try container.decodeIfPresent(Int.self, forKey: .suspiciousIslandDisplayDuration) ?? 2)
         showSessionEndNotifications = try container.decodeIfPresent(Bool.self, forKey: .showSessionEndNotifications) ?? true
         codexExternalApprovalModeEnabled = try container.decodeIfPresent(Bool.self, forKey: .codexExternalApprovalModeEnabled) ?? false
+        islandCompletedColor = try container.decodeIfPresent(SettingsColor.self, forKey: .islandCompletedColor)
+            ?? .islandCompletedDefault
+        islandRunningColor = try container.decodeIfPresent(SettingsColor.self, forKey: .islandRunningColor)
+            ?? .islandRunningDefault
     }
 
     func encode(to encoder: Encoder) throws {
@@ -68,6 +106,8 @@ struct SettingsConfig: Codable, Equatable {
         try container.encode(suspiciousIslandDisplayDuration, forKey: .suspiciousIslandDisplayDuration)
         try container.encode(showSessionEndNotifications, forKey: .showSessionEndNotifications)
         try container.encode(codexExternalApprovalModeEnabled, forKey: .codexExternalApprovalModeEnabled)
+        try container.encode(islandCompletedColor, forKey: .islandCompletedColor)
+        try container.encode(islandRunningColor, forKey: .islandRunningColor)
     }
 }
 
