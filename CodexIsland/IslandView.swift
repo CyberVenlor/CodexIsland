@@ -747,7 +747,7 @@ private struct PixelCountText: View {
     let text: String
     let color: Color
 
-    private let pixelSize: CGFloat = 1
+    private let pixelSize: CGFloat = 2
     private let glyphSpacing: CGFloat = 1
 
     var body: some View {

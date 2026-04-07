@@ -1,10 +1,10 @@
 {
-  "version": "1.0.0",
-  "build": 1,
+  "version": "1.0.1",
+  "build": 2,
   "force_update": false,
-  "minimum_supported_version": "1.0.0",
-  "release_tag": "v1.0.0",
+  "minimum_supported_version": "1.0.1",
+  "release_tag": "v1.0.1",
   "asset_name": "CodexIsland.app.zip",
-  "release_notes": "Initial public release.",
+  "release_notes": "1.0.1 update.",
   "security_notice": ""
 }
