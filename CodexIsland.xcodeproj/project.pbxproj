@@ -253,7 +253,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "set -e\nexport PATH=\"$HOME/.cargo/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$PATH\"\nif ! command -v cargo >/dev/null 2>&1; then\n  echo \"error: cargo not found in PATH=$PATH\" >&2\n  exit 1\nfi\ncd \"$PROJECT_DIR/RustApprovalMatcher\"\ncargo build --release --target-dir \"$PROJECT_DIR/build/rust\"\n";
+			shellScript = "set -e\nexport PATH=\"$HOME/.cargo/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$PATH\"\nif ! command -v cargo >/dev/null 2>&1; then\n  echo \"error: cargo not found in PATH=$PATH\" >&2\n  exit 1\nfi\nif ! command -v xcrun >/dev/null 2>&1; then\n  echo \"error: xcrun not found in PATH=$PATH\" >&2\n  exit 1\nfi\nTARGET_DIR=\"$PROJECT_DIR/build/rust\"\nLIB_NAME=\"libcodex_command_approval_matcher.a\"\ncd \"$PROJECT_DIR/RustApprovalMatcher\"\ncargo build --release --target aarch64-apple-darwin --target-dir \"$TARGET_DIR\"\ncargo build --release --target x86_64-apple-darwin --target-dir \"$TARGET_DIR\"\nmkdir -p \"$TARGET_DIR/release\"\nxcrun lipo -create \\\n  \"$TARGET_DIR/aarch64-apple-darwin/release/$LIB_NAME\" \\\n  \"$TARGET_DIR/x86_64-apple-darwin/release/$LIB_NAME\" \\\n  -output \"$TARGET_DIR/release/$LIB_NAME\"\nxcrun lipo -info \"$TARGET_DIR/release/$LIB_NAME\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -430,10 +430,6 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				LIBRARY_SEARCH_PATHS = (
-					"$(inherited)",
-					"$(PROJECT_DIR)/build/rust/release",
-				);
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -441,7 +437,7 @@
 				MARKETING_VERSION = 1.0.1;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
-					"-lcodex_command_approval_matcher",
+					"$(PROJECT_DIR)/build/rust/release/libcodex_command_approval_matcher.a",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.n3ur0.CodexIsland;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -467,10 +463,6 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				LIBRARY_SEARCH_PATHS = (
-					"$(inherited)",
-					"$(PROJECT_DIR)/build/rust/release",
-				);
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -478,7 +470,7 @@
 				MARKETING_VERSION = 1.0.1;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
-					"-lcodex_command_approval_matcher",
+					"$(PROJECT_DIR)/build/rust/release/libcodex_command_approval_matcher.a",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.n3ur0.CodexIsland;
 				PRODUCT_NAME = "$(TARGET_NAME)";
