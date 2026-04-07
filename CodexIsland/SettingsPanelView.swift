@@ -13,6 +13,18 @@ struct SettingsPanelView: View {
         AppLocalization(language: language)
     }
 
+    private var installedVersion: InstalledAppVersion {
+        InstalledAppVersion.current
+    }
+
+    private var installedVersionLabel: String {
+        installedVersion.marketingVersion.rawValue
+    }
+
+    private var installedBuildLabel: String {
+        installedVersion.build.map(String.init) ?? "-"
+    }
+
     var body: some View {
         HStack(spacing: 14) {
             sidebar
@@ -196,7 +208,7 @@ struct SettingsPanelView: View {
 
             settingsCard(l10n.text("System", chinese: "系统")) {
                 settingsValueRow(l10n.text("Status", chinese: "状态"), value: l10n.text("Ready", chinese: "就绪"))
-                settingsValueRow(l10n.text("Version", chinese: "版本"), value: "1.0.0")
+                settingsValueRow(l10n.text("Version", chinese: "版本"), value: installedVersionLabel)
             }
         }
     }
@@ -284,8 +296,8 @@ struct SettingsPanelView: View {
         formSection {
             settingsCard(l10n.text("Application", chinese: "应用")) {
                 settingsValueRow(l10n.text("Name", chinese: "名称"), value: "CodexIsland")
-                settingsValueRow(l10n.text("Version", chinese: "版本"), value: "1.0.0")
-                settingsValueRow(l10n.text("Build", chinese: "构建号"), value: "26A01")
+                settingsValueRow(l10n.text("Version", chinese: "版本"), value: installedVersionLabel)
+                settingsValueRow(l10n.text("Build", chinese: "构建号"), value: installedBuildLabel)
             }
 
             settingsCard(l10n.text("Support", chinese: "支持")) {

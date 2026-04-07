@@ -81,6 +81,68 @@ struct AppUpdateManifest: Decodable, Equatable {
     }
 }
 
+struct AppUpdateConfig: Equatable {
+    let version: AppVersion
+    let build: Int?
+    let forceUpdate: Bool
+    let minimumSupportedVersion: AppVersion?
+    let releaseTag: String?
+    let assetName: String?
+    let assetURL: URL?
+    let releaseNotes: String?
+    let securityNotice: String?
+
+    init(xcconfigContents: String) throws {
+        let values = Self.parse(contents: xcconfigContents)
+
+        guard let versionValue = values["APP_MARKETING_VERSION"], !versionValue.isEmpty else {
+            throw AppUpdateError.invalidVersionConfig("Missing APP_MARKETING_VERSION")
+        }
+
+        version = AppVersion(versionValue)
+        build = values["APP_BUILD_VERSION"].flatMap(Int.init)
+        forceUpdate = Self.parseBool(values["APP_FORCE_UPDATE"])
+        minimumSupportedVersion = values["APP_MINIMUM_SUPPORTED_VERSION"].map(AppVersion.init)
+        releaseTag = Self.nonEmpty(values["APP_RELEASE_TAG"])
+        assetName = Self.nonEmpty(values["APP_RELEASE_ASSET_NAME"])
+        assetURL = Self.nonEmpty(values["APP_RELEASE_ASSET_URL"]).flatMap(URL.init(string:))
+        releaseNotes = Self.nonEmpty(values["APP_RELEASE_NOTES"])
+        securityNotice = Self.nonEmpty(values["APP_SECURITY_NOTICE"])
+    }
+
+    private static func parse(contents: String) -> [String: String] {
+        var values: [String: String] = [:]
+
+        for rawLine in contents.components(separatedBy: .newlines) {
+            let line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !line.isEmpty, !line.hasPrefix("//"), !line.hasPrefix("#") else { continue }
+            guard let separatorIndex = line.firstIndex(of: "=") else { continue }
+
+            let key = String(line[..<separatorIndex]).trimmingCharacters(in: .whitespacesAndNewlines)
+            let valueStart = line.index(after: separatorIndex)
+            let value = String(line[valueStart...]).trimmingCharacters(in: .whitespacesAndNewlines)
+            values[key] = value
+        }
+
+        return values
+    }
+
+    private static func parseBool(_ rawValue: String?) -> Bool {
+        switch rawValue?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "yes", "true", "1":
+            return true
+        default:
+            return false
+        }
+    }
+
+    private static func nonEmpty(_ rawValue: String?) -> String? {
+        guard let rawValue else { return nil }
+        let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+}
+
 struct GitHubReleaseResponse: Decodable {
     struct Asset: Decodable {
         let name: String
@@ -135,6 +197,7 @@ enum AppUpdatePhase: Equatable {
 
 enum AppUpdateError: LocalizedError, Equatable {
     case invalidHTTPResponse
+    case invalidVersionConfig(String)
     case manifestReleaseAssetMissing
     case noZipAssetInRelease
     case downloadedArchiveMissingApp
@@ -146,6 +209,8 @@ enum AppUpdateError: LocalizedError, Equatable {
         switch self {
         case .invalidHTTPResponse:
             return "Received an invalid response while checking for updates."
+        case .invalidVersionConfig(let message):
+            return "Invalid version config: \(message)"
         case .manifestReleaseAssetMissing:
             return "The configured release asset could not be found in the GitHub release."
         case .noZipAssetInRelease:

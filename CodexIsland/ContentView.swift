@@ -30,7 +30,7 @@ struct ContentView_Previews: PreviewProvider {
                     service: GitHubAppUpdateService(
                         owner: "CyberVenlor",
                         repository: "CodexIsland",
-                        manifestURL: URL(string: "https://raw.githubusercontent.com/CyberVenlor/CodexIsland/main/CodexIsland/update-manifest.json")!
+                        manifestURL: URL(string: "https://raw.githubusercontent.com/CyberVenlor/CodexIsland/master/CodexIsland/AppVersion.xcconfig")!
                     )
                 )
             )

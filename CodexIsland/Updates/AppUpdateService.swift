@@ -29,29 +29,42 @@ final class GitHubAppUpdateService: AppUpdateServing {
     }
 
     func checkForUpdates() async throws -> AvailableAppUpdate? {
-        let manifest: AppUpdateManifest = try await fetchDecodable(from: manifestURL)
+        log("Starting update check. configURL=\(manifestURL.absoluteString)")
+        let versionConfig = try await fetchVersionConfig(from: manifestURL)
         let installedVersion = InstalledAppVersion.current
+        log(
+            "Manifest loaded. installed=\(installedVersion.marketingVersion.rawValue) build=\(installedVersion.build.map(String.init) ?? "nil") " +
+            "remote=\(versionConfig.version.rawValue) build=\(versionConfig.build.map(String.init) ?? "nil") force=\(versionConfig.forceUpdate)"
+        )
 
-        guard manifest.version > installedVersion.marketingVersion
-            || (manifest.version == installedVersion.marketingVersion && (manifest.build ?? 0) > (installedVersion.build ?? 0))
+        guard versionConfig.version > installedVersion.marketingVersion
+            || (versionConfig.version == installedVersion.marketingVersion && (versionConfig.build ?? 0) > (installedVersion.build ?? 0))
         else {
+            log("No update available. Manifest version is not newer than installed build.")
             return nil
         }
 
-        let release = try await fetchRelease(for: manifest)
-        let asset = try selectAsset(from: release, preferredName: manifest.assetName)
-        let isMandatory = manifest.forceUpdate
-            || manifest.minimumSupportedVersion.map { installedVersion.marketingVersion < $0 } == true
+        let release = try await fetchRelease(for: versionConfig)
+        let asset = try selectAsset(
+            from: release,
+            preferredName: versionConfig.assetName,
+            preferredURL: versionConfig.assetURL
+        )
+        let isMandatory = versionConfig.forceUpdate
+            || versionConfig.minimumSupportedVersion.map { installedVersion.marketingVersion < $0 } == true
+        log(
+            "Update available. releaseTag=\(release.tagName) asset=\(asset.name) mandatory=\(isMandatory)"
+        )
 
         return AvailableAppUpdate(
-            version: manifest.version,
-            build: manifest.build,
+            version: versionConfig.version,
+            build: versionConfig.build,
             releaseTag: release.tagName,
             assetName: asset.name,
             downloadURL: asset.browserDownloadURL,
             releasePageURL: release.htmlURL,
-            releaseNotes: manifest.releaseNotes ?? release.body,
-            securityNotice: manifest.securityNotice,
+            releaseNotes: versionConfig.releaseNotes ?? release.body,
+            securityNotice: versionConfig.securityNotice,
             isMandatory: isMandatory
         )
     }
@@ -59,43 +72,69 @@ final class GitHubAppUpdateService: AppUpdateServing {
     func installUpdate(_ update: AvailableAppUpdate) async throws {
         let bundleURL = Bundle.main.bundleURL.standardizedFileURL
         let parentDirectory = bundleURL.deletingLastPathComponent()
+        log("Preparing installation. bundleURL=\(bundleURL.path) parent=\(parentDirectory.path)")
 
         guard fileManager.isWritableFile(atPath: parentDirectory.path) else {
+            log("Install aborted. Parent directory is not writable: \(parentDirectory.path)")
             throw AppUpdateError.appBundleNotWritable(parentDirectory.path)
         }
 
         let stagingRoot = fileManager.temporaryDirectory
             .appendingPathComponent("CodexIslandUpdate-\(UUID().uuidString)", isDirectory: true)
         try fileManager.createDirectory(at: stagingRoot, withIntermediateDirectories: true)
+        log("Created staging directory: \(stagingRoot.path)")
 
         let archiveURL = try await downloadAsset(from: update.downloadURL, into: stagingRoot)
         let stagedAppURL = try await extractApp(from: archiveURL, into: stagingRoot)
+        log("Staged app extracted at: \(stagedAppURL.path)")
         try launchInstaller(stagedAppURL: stagedAppURL, targetAppURL: bundleURL)
+        log("Installer helper launched. Terminating current app to allow replacement.")
 
         await MainActor.run {
             NSApp.terminate(nil)
         }
     }
 
-    private func fetchRelease(for manifest: AppUpdateManifest) async throws -> GitHubReleaseResponse {
+    private func fetchRelease(for manifest: AppUpdateConfig) async throws -> GitHubReleaseResponse {
         let endpoint: URL
 
         if let tag = manifest.releaseTag, !tag.isEmpty {
             endpoint = URL(string: "https://api.github.com/repos/\(owner)/\(repository)/releases/tags/\(tag.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? tag)")!
+            log("Fetching release by tag: \(tag)")
         } else {
             endpoint = URL(string: "https://api.github.com/repos/\(owner)/\(repository)/releases/latest")!
+            log("Fetching latest release because manifest release_tag is empty.")
         }
 
         return try await fetchDecodable(from: endpoint)
+    }
+
+    private func fetchVersionConfig(from url: URL) async throws -> AppUpdateConfig {
+        var request = URLRequest(url: url)
+        request.setValue("text/plain", forHTTPHeaderField: "Accept")
+        request.setValue("CodexIsland", forHTTPHeaderField: "User-Agent")
+        log("HTTP GET \(url.absoluteString)")
+
+        let (data, response) = try await session.data(for: request)
+        try validate(response: response)
+        log("HTTP success \(url.absoluteString) bytes=\(data.count)")
+
+        guard let contents = String(data: data, encoding: .utf8) else {
+            throw AppUpdateError.invalidVersionConfig("Unable to decode config as UTF-8")
+        }
+
+        return try AppUpdateConfig(xcconfigContents: contents)
     }
 
     private func fetchDecodable<T: Decodable>(from url: URL) async throws -> T {
         var request = URLRequest(url: url)
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         request.setValue("CodexIsland", forHTTPHeaderField: "User-Agent")
+        log("HTTP GET \(url.absoluteString)")
 
         let (data, response) = try await session.data(for: request)
         try validate(response: response)
+        log("HTTP success \(url.absoluteString) bytes=\(data.count)")
         return try decoder.decode(T.self, from: data)
     }
 
@@ -103,6 +142,7 @@ final class GitHubAppUpdateService: AppUpdateServing {
         var request = URLRequest(url: url)
         request.setValue("application/octet-stream", forHTTPHeaderField: "Accept")
         request.setValue("CodexIsland", forHTTPHeaderField: "User-Agent")
+        log("Downloading asset from \(url.absoluteString)")
 
         let (temporaryURL, response) = try await session.download(for: request)
         try validate(response: response)
@@ -112,12 +152,14 @@ final class GitHubAppUpdateService: AppUpdateServing {
             try fileManager.removeItem(at: destinationURL)
         }
         try fileManager.moveItem(at: temporaryURL, to: destinationURL)
+        log("Asset downloaded to \(destinationURL.path)")
         return destinationURL
     }
 
     private func extractApp(from archiveURL: URL, into directory: URL) async throws -> URL {
         let extractionURL = directory.appendingPathComponent("Extracted", isDirectory: true)
         try fileManager.createDirectory(at: extractionURL, withIntermediateDirectories: true)
+        log("Extracting archive \(archiveURL.lastPathComponent) to \(extractionURL.path)")
         try await runProcess(
             executableURL: URL(fileURLWithPath: "/usr/bin/ditto"),
             arguments: ["-x", "-k", archiveURL.path, extractionURL.path]
@@ -126,51 +168,76 @@ final class GitHubAppUpdateService: AppUpdateServing {
         guard let appURL = fileManager.enumerator(at: extractionURL, includingPropertiesForKeys: nil)?
             .compactMap({ $0 as? URL })
             .first(where: { $0.pathExtension == "app" }) else {
+            log("Extraction finished but no .app bundle was found.")
             throw AppUpdateError.downloadedArchiveMissingApp
         }
 
+        log("Found extracted app bundle: \(appURL.path)")
         return appURL
     }
 
     private func selectAsset(
         from release: GitHubReleaseResponse,
-        preferredName: String?
+        preferredName: String?,
+        preferredURL: URL?
     ) throws -> GitHubReleaseResponse.Asset {
-        if let preferredName,
-           let asset = release.assets.first(where: { $0.name == preferredName }) {
+        let availableAssetNames = release.assets.map(\.name).joined(separator: ", ")
+
+        if let preferredURL,
+           let asset = release.assets.first(where: { $0.browserDownloadURL == preferredURL }) {
+            log("Matched preferred asset URL from version config: \(preferredURL.absoluteString)")
             return asset
         }
 
-        if preferredName != nil {
+        if let preferredName,
+           let asset = release.assets.first(where: { $0.name == preferredName }) {
+            log("Matched preferred asset from manifest: \(preferredName)")
+            return asset
+        }
+
+        if preferredURL != nil || preferredName != nil {
+            log(
+                "Preferred asset from version config was not found. " +
+                "preferredURL=\(preferredURL?.absoluteString ?? "nil") " +
+                "preferredName=\(preferredName ?? "nil") " +
+                "available=\(availableAssetNames)"
+            )
             throw AppUpdateError.manifestReleaseAssetMissing
         }
 
         guard let asset = release.assets.first(where: { $0.name.lowercased().hasSuffix(".zip") }) else {
+            log("No .zip asset found in release. available=\(availableAssetNames)")
             throw AppUpdateError.noZipAssetInRelease
         }
 
+        log("Selected fallback zip asset: \(asset.name)")
         return asset
     }
 
     private func validate(response: URLResponse) throws {
         guard let httpResponse = response as? HTTPURLResponse else {
+            log("Received invalid non-HTTP response.")
             throw AppUpdateError.invalidHTTPResponse
         }
 
         guard (200...299).contains(httpResponse.statusCode) else {
+            log("HTTP request failed with status \(httpResponse.statusCode)")
             throw AppUpdateError.unexpectedStatusCode(httpResponse.statusCode)
         }
     }
 
     private func runProcess(executableURL: URL, arguments: [String]) async throws {
+        log("Launching process: \(executableURL.path) \(arguments.joined(separator: " "))")
         try await withCheckedThrowingContinuation { continuation in
             let process = Process()
             process.executableURL = executableURL
             process.arguments = arguments
             process.terminationHandler = { process in
                 if process.terminationStatus == 0 {
+                    self.log("Process finished successfully: \(executableURL.lastPathComponent)")
                     continuation.resume(returning: ())
                 } else {
+                    self.log("Process failed: \(executableURL.lastPathComponent) status=\(process.terminationStatus)")
                     continuation.resume(throwing: AppUpdateError.installerLaunchFailed)
                 }
             }
@@ -218,8 +285,14 @@ final class GitHubAppUpdateService: AppUpdateServing {
 
         do {
             try process.run()
+            log("Installer script started: \(scriptURL.path)")
         } catch {
+            log("Failed to start installer script: \(error.localizedDescription)")
             throw AppUpdateError.installerLaunchFailed
         }
+    }
+
+    private func log(_ message: String) {
+        NSLog("[AppUpdate] %@", message)
     }
 }

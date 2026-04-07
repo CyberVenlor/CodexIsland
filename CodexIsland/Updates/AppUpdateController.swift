@@ -44,15 +44,18 @@ final class AppUpdateController: ObservableObject {
     func checkForUpdatesAtLaunchIfNeeded() {
         guard !hasCheckedAtLaunch else { return }
         hasCheckedAtLaunch = true
+        log("Launch-triggered update check scheduled.")
         checkForUpdates()
     }
 
     func checkForUpdates() {
         if case .checking = phase {
+            log("Update check skipped because a check is already running.")
             return
         }
 
         phase = .checking
+        log("Phase changed to checking.")
         Task { await performCheck() }
     }
 
@@ -61,6 +64,7 @@ final class AppUpdateController: ObservableObject {
         guard !isBusy else { return }
 
         phase = .downloading(update)
+        log("User accepted update. version=\(update.versionLabel) mandatory=\(update.isMandatory)")
         Task { await performInstall(update) }
     }
 
@@ -69,27 +73,37 @@ final class AppUpdateController: ObservableObject {
         guard !update.isMandatory else { return }
         guard !isBusy else { return }
         phase = .idle
+        log("User dismissed optional update for version \(update.versionLabel).")
     }
 
     private func performCheck() async {
         do {
             if let update = try await service.checkForUpdates() {
                 phase = .available(update)
+                log("Phase changed to available. version=\(update.versionLabel) mandatory=\(update.isMandatory)")
             } else {
                 phase = .idle
+                log("Update check completed. No newer version found.")
             }
         } catch {
             phase = .idle
-            NSLog("Failed to check for updates: %@", error.localizedDescription)
+            log("Update check failed: \(error.localizedDescription)")
         }
     }
 
     private func performInstall(_ update: AvailableAppUpdate) async {
         do {
+            log("Install task started for version \(update.versionLabel).")
             try await service.installUpdate(update)
             phase = .installing(update)
+            log("Phase changed to installing for version \(update.versionLabel).")
         } catch {
             phase = .failed(update, message: error.localizedDescription)
+            log("Install failed for version \(update.versionLabel): \(error.localizedDescription)")
         }
+    }
+
+    private func log(_ message: String) {
+        NSLog("[AppUpdate] %@", message)
     }
 }
