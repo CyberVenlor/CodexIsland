@@ -512,3 +512,30 @@ fn is_safe_xcodebuild_command(tokens: &[String]) -> bool {
 fn is_safe_javascript_command(tokens: &[String]) -> bool {
     matches!(tokens.get(1).map(String::as_str), Some("test"))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::requires_approval;
+
+    #[test]
+    fn read_only_rg_does_not_require_approval() {
+        assert!(!requires_approval("Bash".into(), "rg foo Sources".into()));
+    }
+
+    #[test]
+    fn read_only_sed_does_not_require_approval() {
+        assert!(!requires_approval("Bash".into(), "sed -n '1,20p' README.md".into()));
+    }
+
+    #[test]
+    fn in_place_sed_requires_approval() {
+        assert!(requires_approval("Bash".into(), "sed -i '' 's/a/b/' README.md".into()));
+    }
+
+    #[test]
+    fn unknown_commands_still_require_approval() {
+        for command in ["ng version", "ar -t libfoo.a", "seg foo"] {
+            assert!(requires_approval("Bash".into(), command.into()), "{command}");
+        }
+    }
+}
