@@ -4,6 +4,7 @@ import SwiftUI
 struct IslandView: View {
     @ObservedObject var controller: IslandController
     @EnvironmentObject private var sessionController: CodexSessionController
+    @EnvironmentObject private var appUpdateController: AppUpdateController
     @EnvironmentObject private var settingsStore: SettingsConfigStore
     private let shellStrokeWidth: CGFloat = 1.2
 
@@ -33,6 +34,10 @@ struct IslandView: View {
         .frame(width: canvasSize.width, height: canvasSize.height, alignment: .top)
         .onAppear {
             controller.updateApprovalPresentation(hasPendingApproval: sessionController.hasPendingApprovals)
+            controller.updateAppUpdatePresentation(
+                isPresented: appUpdateController.currentUpdate != nil,
+                isMandatory: appUpdateController.isMandatory
+            )
             controller.updateTransientPresentationSettings(
                 sessionEndedDuration: TimeInterval(settingsStore.config.completedIslandDisplayDuration),
                 suspiciousDuration: TimeInterval(settingsStore.config.suspiciousIslandDisplayDuration)
@@ -40,6 +45,12 @@ struct IslandView: View {
         }
         .onChange(of: sessionController.pendingApprovalToolCall?.id) { newValue in
             controller.updateApprovalPresentation(hasPendingApproval: newValue != nil)
+        }
+        .onChange(of: appUpdateController.currentUpdate) { newValue in
+            controller.updateAppUpdatePresentation(
+                isPresented: newValue != nil,
+                isMandatory: appUpdateController.isMandatory
+            )
         }
         .onChange(of: sessionController.sessionEndedNotification?.id) { newValue in
             guard newValue != nil else { return }
@@ -280,6 +291,7 @@ struct IslandContentView: View {
     let state: IslandPresentationState
     @ObservedObject var controller: IslandController
     @ObservedObject var sessionController: CodexSessionController
+    @EnvironmentObject private var appUpdateController: AppUpdateController
     @EnvironmentObject private var settingsStore: SettingsConfigStore
 
     private var l10n: AppLocalization {
@@ -322,24 +334,6 @@ struct IslandContentView: View {
         sessionController.runningSessionCount > 0 ? .green : .blue
     }
 
-    private var collapsedSessionCountFont: Font {
-        let pixelCandidates = [
-            "Silkscreen-Regular",
-            "PressStart2P-Regular",
-            "PixeloidSans",
-            "PixeloidMono",
-            "Monaco",
-        ]
-
-        for name in pixelCandidates {
-            if let font = NSFont(name: name, size: 11) {
-                return Font(font)
-            }
-        }
-
-        return .system(size: 11, weight: .bold, design: .monospaced)
-    }
-
     var body: some View {
         ZStack(alignment: .top) {
             collapsedContent
@@ -378,10 +372,10 @@ struct IslandContentView: View {
                 .frame(width: 24)
                 .offset(x: -102)
 
-            Text(collapsedRunningSessionCountText)
-                .font(collapsedSessionCountFont)
-                .kerning(0.4)
-                .foregroundStyle(collapsedActivityColor)
+            PixelCountText(
+                text: collapsedRunningSessionCountText,
+                color: collapsedActivityColor
+            )
                 .offset(x: 102)
         }
         .padding(.horizontal, 16)
@@ -422,6 +416,10 @@ struct IslandContentView: View {
 
     private var isSessionEndedPanelActive: Bool {
         controller.activePanel == .sessionEnded
+    }
+
+    private var isAppUpdatePanelActive: Bool {
+        controller.activePanel == .appUpdate
     }
 
     private var isSuspiciousSessionPanelActive: Bool {
@@ -468,7 +466,7 @@ struct IslandContentView: View {
 
             Spacer()
 
-            if !isApprovalPanelActive && !isSessionEndedPanelActive && !isSuspiciousSessionPanelActive {
+            if !isApprovalPanelActive && !isSessionEndedPanelActive && !isSuspiciousSessionPanelActive && !isAppUpdatePanelActive {
                 Button {
                     controller.toggleSettingsPanel()
                 } label: {
@@ -501,6 +499,11 @@ struct IslandContentView: View {
         if isSessionEndedPanelActive {
             return l10n.text("Session Complete", chinese: "Session 已结束")
         }
+        if isAppUpdatePanelActive {
+            return controller.updatePanelIsMandatory
+                ? l10n.text("Critical Update Required", chinese: "必须安装安全更新")
+                : l10n.text("Update Available", chinese: "发现新版本")
+        }
         if let status = approvalPanelStatus {
             return status == .pending
                 ? l10n.text("Tool Approval", chinese: "工具审批")
@@ -516,6 +519,11 @@ struct IslandContentView: View {
             }
             if isSessionEndedPanelActive {
                 return l10n.text("A Codex session just finished", chinese: "一个 Codex session 刚刚结束")
+            }
+            if isAppUpdatePanelActive {
+                return controller.updatePanelIsMandatory
+                    ? l10n.text("This build must be replaced before continuing", chinese: "当前版本必须更新后才能继续使用")
+                    : l10n.text("A newer release is available on GitHub", chinese: "GitHub 上有可用的新版本")
             }
             return nil
         }
@@ -548,6 +556,12 @@ struct IslandContentView: View {
                     .environmentObject(settingsStore)
                     .id("sessionEnded")
                     .transition(.gaussianBlurPanel)
+            } else if controller.activePanel == .appUpdate {
+                AppUpdatePanelView()
+                    .environmentObject(appUpdateController)
+                    .environmentObject(settingsStore)
+                    .id("appUpdate")
+                    .transition(.gaussianBlurPanel)
             } else if let status = approvalPanelStatus {
                 ApprovalPanelView(status: status, controller: controller)
                     .environmentObject(sessionController)
@@ -572,6 +586,291 @@ struct IslandContentView: View {
             return "tracked-\(sessionController.sessions.count)"
         }
         return "none"
+    }
+}
+
+private struct AppUpdatePanelView: View {
+    @EnvironmentObject private var appUpdateController: AppUpdateController
+    @EnvironmentObject private var settingsStore: SettingsConfigStore
+
+    private var l10n: AppLocalization {
+        AppLocalization(language: settingsStore.config.appLanguage)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            if let update = appUpdateController.currentUpdate {
+                versionSection(update)
+
+                if let notice = update.securityNotice, !notice.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(l10n.text("Security Notice", chinese: "安全提示"))
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.orange.opacity(0.9))
+
+                        Text(notice)
+                            .font(.caption)
+                            .foregroundStyle(.white.opacity(0.9))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(10)
+                    .background(Color.orange.opacity(0.10), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                }
+
+                if let releaseNotes = update.releaseNotes, !releaseNotes.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(l10n.text("Release Notes", chinese: "版本说明"))
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.white.opacity(0.65))
+
+                        Text(releaseNotes)
+                            .font(.caption)
+                            .foregroundStyle(.white.opacity(0.84))
+                            .lineLimit(5)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(10)
+                    .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                }
+
+                switch appUpdateController.phase {
+                case .available:
+                    actionBar(update: update)
+                case .downloading:
+                    progressStatus(
+                        title: l10n.text("Downloading update package…", chinese: "正在下载更新包…"),
+                        subtitle: l10n.text("CodexIsland will relaunch automatically after installation.", chinese: "安装完成后 CodexIsland 会自动重新启动。")
+                    )
+                case .installing:
+                    progressStatus(
+                        title: l10n.text("Installing update…", chinese: "正在安装更新…"),
+                        subtitle: l10n.text("Waiting for the current process to exit.", chinese: "正在等待当前进程退出并替换应用。")
+                    )
+                case .failed(_, let message):
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text(message)
+                            .font(.caption)
+                            .foregroundStyle(.red.opacity(0.92))
+                            .fixedSize(horizontal: false, vertical: true)
+                        actionBar(update: update, retry: true)
+                    }
+                case .idle, .checking:
+                    EmptyView()
+                }
+            } else {
+                progressStatus(
+                    title: l10n.text("Checking for updates…", chinese: "正在检查更新…"),
+                    subtitle: l10n.text("Contacting GitHub release metadata.", chinese: "正在读取 GitHub 版本信息。")
+                )
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private func versionSection(_ update: AvailableAppUpdate) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            updateLabel(
+                l10n.text("Current", chinese: "当前版本"),
+                value: InstalledAppVersion.current.marketingVersion.rawValue
+            )
+            updateLabel(
+                l10n.text("Latest", chinese: "最新版本"),
+                value: update.versionLabel
+            )
+            updateLabel(
+                l10n.text("Release", chinese: "Release 标签"),
+                value: update.releaseTag,
+                monospaced: true
+            )
+        }
+    }
+
+    private func updateLabel(_ title: String, value: String, monospaced: Bool = false) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.65))
+
+            Text(value)
+                .font(monospaced ? .caption.monospaced() : .caption)
+                .foregroundStyle(.white.opacity(0.9))
+                .textSelection(.enabled)
+        }
+    }
+
+    private func progressStatus(title: String, subtitle: String) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            ProgressView()
+                .progressViewStyle(.linear)
+                .tint(.white)
+
+            Text(title)
+                .font(.headline)
+                .foregroundStyle(.white)
+
+            Text(subtitle)
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.7))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.top, 4)
+    }
+
+    private func actionBar(update: AvailableAppUpdate, retry: Bool = false) -> some View {
+        HStack(spacing: 10) {
+            ApprovalCapsuleButton(
+                title: retry
+                    ? l10n.text("Retry Update", chinese: "重试更新")
+                    : l10n.text("Update Now", chinese: "立即更新"),
+                fill: Color.green.opacity(0.9),
+                stroke: Color.green.opacity(0.55)
+            ) {
+                appUpdateController.startUpdate()
+            }
+
+            if !update.isMandatory {
+                ApprovalCapsuleButton(
+                    title: l10n.text("Later", chinese: "稍后"),
+                    fill: Color.white.opacity(0.08),
+                    stroke: Color.white.opacity(0.12)
+                ) {
+                    appUpdateController.dismissUpdate()
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .center)
+        .padding(.top, 2)
+    }
+}
+
+private struct PixelCountText: View {
+    let text: String
+    let color: Color
+
+    private let pixelSize: CGFloat = 2.2
+    private let glyphSpacing: CGFloat = 1.6
+
+    var body: some View {
+        HStack(spacing: glyphSpacing * pixelSize) {
+            ForEach(Array(text.enumerated()), id: \.offset) { entry in
+                PixelGlyph(
+                    rows: Self.glyphs[entry.element] ?? Self.fallbackGlyph,
+                    color: color,
+                    pixelSize: pixelSize
+                )
+            }
+        }
+        .frame(height: 5 * pixelSize, alignment: .center)
+        .drawingGroup(opaque: false, colorMode: .linear)
+    }
+
+    private static let fallbackGlyph: [String] = [
+        "111",
+        "101",
+        "001",
+        "000",
+        "001",
+    ]
+
+    private static let glyphs: [Character: [String]] = [
+        "0": [
+            "111",
+            "101",
+            "101",
+            "101",
+            "111",
+        ],
+        "1": [
+            "010",
+            "110",
+            "010",
+            "010",
+            "111",
+        ],
+        "2": [
+            "111",
+            "001",
+            "111",
+            "100",
+            "111",
+        ],
+        "3": [
+            "111",
+            "001",
+            "111",
+            "001",
+            "111",
+        ],
+        "4": [
+            "101",
+            "101",
+            "111",
+            "001",
+            "001",
+        ],
+        "5": [
+            "111",
+            "100",
+            "111",
+            "001",
+            "111",
+        ],
+        "6": [
+            "111",
+            "100",
+            "111",
+            "101",
+            "111",
+        ],
+        "7": [
+            "111",
+            "001",
+            "001",
+            "001",
+            "001",
+        ],
+        "8": [
+            "111",
+            "101",
+            "111",
+            "101",
+            "111",
+        ],
+        "9": [
+            "111",
+            "101",
+            "111",
+            "001",
+            "111",
+        ],
+        ">": [
+            "100",
+            "010",
+            "001",
+            "010",
+            "100",
+        ],
+    ]
+}
+
+private struct PixelGlyph: View {
+    let rows: [String]
+    let color: Color
+    let pixelSize: CGFloat
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ForEach(Array(rows.enumerated()), id: \.offset) { rowEntry in
+                HStack(spacing: 0) {
+                    ForEach(Array(rowEntry.element.enumerated()), id: \.offset) { pixelEntry in
+                        Rectangle()
+                            .fill(pixelEntry.element == "1" ? color : .clear)
+                            .frame(width: pixelSize, height: pixelSize)
+                    }
+                }
+            }
+        }
+        .fixedSize()
     }
 }
 

@@ -26,6 +26,7 @@ enum ExpandedIslandPanel: Equatable {
     case sessions
     case settings
     case approval(status: ApprovalPanelStatus)
+    case appUpdate
     case sessionEnded
     case sessionSuspicious
 }
@@ -55,6 +56,7 @@ final class IslandController: ObservableObject {
     @Published private(set) var isExpanded = false
     @Published private(set) var activePanel: ExpandedIslandPanel = .sessions
     @Published private(set) var approvalPanelShowsDenyReason = false
+    @Published private(set) var updatePanelIsMandatory = false
     @Published private(set) var hoverResetToken = UUID()
     @Published private(set) var hoverResetRequiresExit = false
     @Published private(set) var approvalCompletionAnimationToken = UUID()
@@ -66,6 +68,7 @@ final class IslandController: ObservableObject {
     private var lastTransitionAt: Date = .distantPast
     private var targetExpandedState = false
     private var approvalPresentationLocked = false
+    private var updatePresentationLocked = false
     private var transientPresentationLocked = false
     private var transientPresentationRequiresInteraction = false
     private var transientHoverArmed = false
@@ -95,7 +98,7 @@ final class IslandController: ObservableObject {
     }
 
     func handleHoverChange(_ isHovering: Bool) {
-        guard !approvalPresentationLocked else { return }
+        guard !approvalPresentationLocked, !updatePresentationLocked else { return }
 
         if transientPresentationLocked {
             guard transientPresentationRequiresInteraction else { return }
@@ -146,7 +149,7 @@ final class IslandController: ObservableObject {
 
     func collapse(resetActivePanel: Bool = true) {
         guard isExpanded else { return }
-        guard !approvalPresentationLocked, !transientPresentationLocked else { return }
+        guard !approvalPresentationLocked, !updatePresentationLocked, !transientPresentationLocked else { return }
         guard canTransitionNow else {
             scheduleTransitionRetry(for: false)
             return
@@ -163,7 +166,7 @@ final class IslandController: ObservableObject {
     }
 
     func toggleSettingsPanel() {
-        guard isExpanded, !approvalPresentationLocked, !transientPresentationLocked else { return }
+        guard isExpanded, !approvalPresentationLocked, !updatePresentationLocked, !transientPresentationLocked else { return }
 
         withAnimation(Self.expandAnimation) {
             activePanel = activePanel == .settings ? .sessions : .settings
@@ -214,6 +217,39 @@ final class IslandController: ObservableObject {
         )
     }
 
+    func updateAppUpdatePresentation(isPresented: Bool, isMandatory: Bool) {
+        guard !approvalPresentationLocked else { return }
+
+        if isPresented {
+            pendingSessionEndedDismissal?.cancel()
+            pendingSessionEndedDismissal = nil
+            transientPresentationLocked = false
+            transientPresentationRequiresInteraction = false
+            transientHoverArmed = false
+            updatePresentationLocked = true
+            updatePanelIsMandatory = isMandatory
+            hoverResetRequiresExit = false
+            targetExpandedState = true
+            if !isExpanded {
+                expand()
+            }
+            withAnimation(Self.expandAnimation) {
+                activePanel = .appUpdate
+            }
+            return
+        }
+
+        guard updatePresentationLocked else { return }
+
+        updatePresentationLocked = false
+        updatePanelIsMandatory = false
+        targetExpandedState = false
+        hoverResetRequiresExit = true
+        collapse(resetActivePanel: false)
+        activePanel = .sessions
+        hoverResetToken = UUID()
+    }
+
     func updateApprovalPanelLayout(showsDenyReason: Bool) {
         guard approvalPresentationLocked else { return }
         guard approvalPanelShowsDenyReason != showsDenyReason else { return }
@@ -224,7 +260,7 @@ final class IslandController: ObservableObject {
     }
 
     func presentSessionEndedPanel() {
-        guard !approvalPresentationLocked else { return }
+        guard !approvalPresentationLocked, !updatePresentationLocked else { return }
         guard !isExpanded else { return }
 
         presentTransientPanel(
@@ -235,7 +271,7 @@ final class IslandController: ObservableObject {
     }
 
     func presentSuspiciousSessionPanel() {
-        guard !approvalPresentationLocked else { return }
+        guard !approvalPresentationLocked, !updatePresentationLocked else { return }
         guard !isExpanded else { return }
 
         presentTransientPanel(

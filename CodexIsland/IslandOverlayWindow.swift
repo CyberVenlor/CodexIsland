@@ -88,14 +88,20 @@ final class TransparentHostingView<Content: View>: NSHostingView<Content> {
 final class IslandOverlayController: NSObject {
     private let islandController = IslandController()
     private let sessionController: CodexSessionController
+    private let appUpdateController: AppUpdateController
     private let settingsStore: SettingsConfigStore
     private var panel: IslandPanel?
     private var cancellables: Set<AnyCancellable> = []
     private var mousePassthroughTimer: Timer?
     private var globalMouseDownMonitor: Any?
 
-    init(sessionController: CodexSessionController, settingsStore: SettingsConfigStore) {
+    init(
+        sessionController: CodexSessionController,
+        appUpdateController: AppUpdateController,
+        settingsStore: SettingsConfigStore
+    ) {
         self.sessionController = sessionController
+        self.appUpdateController = appUpdateController
         self.settingsStore = settingsStore
         super.init()
     }
@@ -142,6 +148,7 @@ final class IslandOverlayController: NSObject {
         }
         let hostingView = TransparentHostingView(
             rootView: ContentView(controller: islandController)
+                .environmentObject(appUpdateController)
                 .environmentObject(sessionController)
                 .environmentObject(settingsStore)
         )

@@ -25,6 +25,15 @@ struct ContentView: View {
 struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
         ContentView(controller: IslandController())
+            .environmentObject(
+                AppUpdateController(
+                    service: GitHubAppUpdateService(
+                        owner: "CyberVenlor",
+                        repository: "CodexIsland",
+                        manifestURL: URL(string: "https://raw.githubusercontent.com/CyberVenlor/CodexIsland/main/CodexIsland/update-manifest.json")!
+                    )
+                )
+            )
             .environmentObject(CodexSessionController())
             .environmentObject(SettingsConfigStore())
             .padding(40)

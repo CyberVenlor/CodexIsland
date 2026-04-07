@@ -13,6 +13,12 @@ import Darwin
 
 struct CodexIslandTests {
 
+    @Test func appVersionComparisonUsesNumericSegments() {
+        #expect(AppVersion("1.0.10") > AppVersion("1.0.2"))
+        #expect(AppVersion("1.2") == AppVersion("1.2.0"))
+        #expect(AppVersion("2.0") > AppVersion("1.9.9"))
+    }
+
     @Test func appLanguageRecognizesChinesePreferenceVariants() {
         #expect(AppLanguage(preference: "Chinese") == .chinese)
         #expect(AppLanguage(preference: "中文") == .chinese)
@@ -38,6 +44,22 @@ struct CodexIslandTests {
 
         #expect(islandController.isExpanded == true)
         #expect(islandController.activePanel == .approval(status: .pending))
+    }
+
+    @MainActor
+    @Test func appUpdatePanelCanBePresentedAndDismissedWhenOptional() async throws {
+        let islandController = IslandController()
+
+        islandController.updateAppUpdatePresentation(isPresented: true, isMandatory: false)
+
+        #expect(islandController.isExpanded == true)
+        #expect(islandController.activePanel == .appUpdate)
+        #expect(islandController.updatePanelIsMandatory == false)
+
+        islandController.updateAppUpdatePresentation(isPresented: false, isMandatory: false)
+
+        #expect(islandController.isExpanded == false)
+        #expect(islandController.activePanel == .sessions)
     }
 
     @MainActor

@@ -7,8 +7,16 @@ import SwiftUI
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let sessionController = CodexSessionController()
     let settingsStore = SettingsConfigStore()
+    let appUpdateController = AppUpdateController(
+        service: GitHubAppUpdateService(
+            owner: "CyberVenlor",
+            repository: "CodexIsland",
+            manifestURL: URL(string: "https://raw.githubusercontent.com/CyberVenlor/CodexIsland/main/CodexIsland/update-manifest.json")!
+        )
+    )
     private lazy var overlayController = IslandOverlayController(
         sessionController: sessionController,
+        appUpdateController: appUpdateController,
         settingsStore: settingsStore
     )
     private lazy var relayServer = CodexHookRelayServer(sessionController: sessionController)
@@ -21,6 +29,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         sessionController.updateHookSettings(settingsStore.config)
         overlayController.start()
         relayServer.start()
+        appUpdateController.checkForUpdatesAtLaunchIfNeeded()
     }
 
     private func configureLaunchAtLogin() {
@@ -62,6 +71,7 @@ struct CodexIslandApp: App {
     var body: some Scene {
         Settings {
             SettingsPanelView()
+                .environmentObject(appDelegate.appUpdateController)
                 .environmentObject(appDelegate.settingsStore)
         }
         .commands {
