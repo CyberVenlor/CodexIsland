@@ -14,7 +14,7 @@ final class AppUpdateController: ObservableObject {
 
     var currentUpdate: AvailableAppUpdate? {
         switch phase {
-        case .available(let update), .downloading(let update), .installing(let update), .failed(let update, _):
+        case .available(let update), .unavailable(let update, _), .downloading(let update), .installing(let update), .failed(let update, _):
             return update
         case .idle, .checking:
             return nil
@@ -29,6 +29,9 @@ final class AppUpdateController: ObservableObject {
         if case .failed(_, let message) = phase {
             return message
         }
+        if case .unavailable(_, let message) = phase {
+            return message
+        }
         return nil
     }
 
@@ -36,7 +39,7 @@ final class AppUpdateController: ObservableObject {
         switch phase {
         case .downloading, .installing, .checking:
             return true
-        case .idle, .available, .failed:
+        case .idle, .available, .unavailable, .failed:
             return false
         }
     }
@@ -78,12 +81,16 @@ final class AppUpdateController: ObservableObject {
 
     private func performCheck() async {
         do {
-            if let update = try await service.checkForUpdates() {
-                phase = .available(update)
-                log("Phase changed to available. version=\(update.versionLabel) mandatory=\(update.isMandatory)")
-            } else {
+            switch try await service.checkForUpdates() {
+            case .none:
                 phase = .idle
                 log("Update check completed. No newer version found.")
+            case .available(let update):
+                phase = .available(update)
+                log("Phase changed to available. version=\(update.versionLabel) mandatory=\(update.isMandatory)")
+            case .unavailable(let update, let message):
+                phase = .unavailable(update, message: message)
+                log("Phase changed to unavailable. version=\(update.versionLabel) error=\(message)")
             }
         } catch {
             phase = .idle

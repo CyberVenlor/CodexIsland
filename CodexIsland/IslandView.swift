@@ -636,6 +636,33 @@ private struct AppUpdatePanelView: View {
                 switch appUpdateController.phase {
                 case .available:
                     actionBar(update: update)
+                case .unavailable(_, let message):
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text(message)
+                            .font(.caption)
+                            .foregroundStyle(.orange.opacity(0.92))
+                            .fixedSize(horizontal: false, vertical: true)
+                        HStack(spacing: 10) {
+                            ApprovalCapsuleButton(
+                                title: l10n.text("Retry Check", chinese: "重试检查"),
+                                fill: Color.orange.opacity(0.85),
+                                stroke: Color.orange.opacity(0.5)
+                            ) {
+                                appUpdateController.checkForUpdates()
+                            }
+
+                            if !update.isMandatory {
+                                ApprovalCapsuleButton(
+                                    title: l10n.text("Later", chinese: "稍后"),
+                                    fill: Color.white.opacity(0.08),
+                                    stroke: Color.white.opacity(0.12)
+                                ) {
+                                    appUpdateController.dismissUpdate()
+                                }
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .center)
+                    }
                 case .downloading:
                     progressStatus(
                         title: l10n.text("Downloading update package…", chinese: "正在下载更新包…"),

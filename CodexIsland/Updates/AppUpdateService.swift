@@ -2,7 +2,7 @@ import AppKit
 import Foundation
 
 protocol AppUpdateServing {
-    func checkForUpdates() async throws -> AvailableAppUpdate?
+    func checkForUpdates() async throws -> AppUpdateCheckResult
     func installUpdate(_ update: AvailableAppUpdate) async throws
 }
 
@@ -28,7 +28,7 @@ final class GitHubAppUpdateService: AppUpdateServing {
         self.fileManager = fileManager
     }
 
-    func checkForUpdates() async throws -> AvailableAppUpdate? {
+    func checkForUpdates() async throws -> AppUpdateCheckResult {
         log("Starting update check. configURL=\(manifestURL.absoluteString)")
         let versionConfig = try await fetchVersionConfig(from: manifestURL)
         let installedVersion = InstalledAppVersion.current
@@ -41,22 +41,32 @@ final class GitHubAppUpdateService: AppUpdateServing {
             || (versionConfig.version == installedVersion.marketingVersion && (versionConfig.build ?? 0) > (installedVersion.build ?? 0))
         else {
             log("No update available. Manifest version is not newer than installed build.")
-            return nil
+            return .none
         }
 
-        let release = try await fetchRelease(for: versionConfig)
-        let asset = try selectAsset(
-            from: release,
-            preferredName: versionConfig.assetName,
-            preferredURL: versionConfig.assetURL
-        )
+        let fallbackUpdate = makeFallbackUpdate(from: versionConfig)
+        let release: GitHubReleaseResponse
+        let asset: GitHubReleaseResponse.Asset
+
+        do {
+            release = try await fetchRelease(for: versionConfig)
+            asset = try selectAsset(
+                from: release,
+                preferredName: versionConfig.assetName,
+                preferredURL: versionConfig.assetURL
+            )
+        } catch {
+            log("Release lookup failed after detecting newer version: \(error.localizedDescription)")
+            return .unavailable(fallbackUpdate, message: error.localizedDescription)
+        }
+
         let isMandatory = versionConfig.forceUpdate
             || versionConfig.minimumSupportedVersion.map { installedVersion.marketingVersion < $0 } == true
         log(
             "Update available. releaseTag=\(release.tagName) asset=\(asset.name) mandatory=\(isMandatory)"
         )
 
-        return AvailableAppUpdate(
+        return .available(AvailableAppUpdate(
             version: versionConfig.version,
             build: versionConfig.build,
             releaseTag: release.tagName,
@@ -66,7 +76,7 @@ final class GitHubAppUpdateService: AppUpdateServing {
             releaseNotes: versionConfig.releaseNotes ?? release.body,
             securityNotice: versionConfig.securityNotice,
             isMandatory: isMandatory
-        )
+        ))
     }
 
     func installUpdate(_ update: AvailableAppUpdate) async throws {
@@ -107,6 +117,31 @@ final class GitHubAppUpdateService: AppUpdateServing {
         }
 
         return try await fetchDecodable(from: endpoint)
+    }
+
+    private func makeFallbackUpdate(from config: AppUpdateConfig) -> AvailableAppUpdate {
+        let releasePageURL: URL
+        if let tag = config.releaseTag, !tag.isEmpty {
+            releasePageURL = URL(string: "https://github.com/\(owner)/\(repository)/releases/tag/\(tag.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? tag)")!
+        } else {
+            releasePageURL = URL(string: "https://github.com/\(owner)/\(repository)/releases")!
+        }
+
+        let downloadURL = config.assetURL ?? releasePageURL
+        let isMandatory = config.forceUpdate
+            || config.minimumSupportedVersion.map { InstalledAppVersion.current.marketingVersion < $0 } == true
+
+        return AvailableAppUpdate(
+            version: config.version,
+            build: config.build,
+            releaseTag: config.releaseTag ?? "unknown",
+            assetName: config.assetName ?? downloadURL.lastPathComponent,
+            downloadURL: downloadURL,
+            releasePageURL: releasePageURL,
+            releaseNotes: config.releaseNotes,
+            securityNotice: config.securityNotice,
+            isMandatory: isMandatory
+        )
     }
 
     private func fetchVersionConfig(from url: URL) async throws -> AppUpdateConfig {

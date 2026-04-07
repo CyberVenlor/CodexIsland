@@ -186,10 +186,17 @@ struct AvailableAppUpdate: Equatable {
     }
 }
 
+enum AppUpdateCheckResult: Equatable {
+    case none
+    case available(AvailableAppUpdate)
+    case unavailable(AvailableAppUpdate, message: String)
+}
+
 enum AppUpdatePhase: Equatable {
     case idle
     case checking
     case available(AvailableAppUpdate)
+    case unavailable(AvailableAppUpdate, message: String)
     case downloading(AvailableAppUpdate)
     case installing(AvailableAppUpdate)
     case failed(AvailableAppUpdate, message: String)
